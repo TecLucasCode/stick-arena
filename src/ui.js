@@ -24,6 +24,7 @@
   function show(id) {
     document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
     const t = el(id); if (t) t.classList.add("active");
+    try { document.body.classList.toggle("playing", id === "screen-game"); } catch (e) {}
     window.scrollTo(0, 0);
   }
   function toast(msg, ms) {

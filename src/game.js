@@ -9,17 +9,27 @@
   let REMOTE = {}; // id -> {x,y,...tx,ty,ts}
   let JOY = { active: false, id: null, cx: 0, cy: 0, dx: 0, dy: 0, down: false, jumpSent: false };
   let DPAD = { left: false, right: false, down: false };
+  let EDIT_MOVE = false;
+  function enterFullscreen() {
+    try {
+      const el = document.documentElement;
+      if (el.requestFullscreen && !document.fullscreenElement) { const p = el.requestFullscreen(); if (p && p.catch) p.catch(() => {}); }
+      if (screen.orientation && screen.orientation.lock) { const q = screen.orientation.lock("landscape"); if (q && q.catch) q.catch(() => {}); }
+    } catch (e) {}
+    setTimeout(() => { try { fitCanvas(); } catch (err) {} }, 350);
+  }
 
   function boot() {
     PROF = window.SA_PROFILE.load();
     if (PROF.classe) LOBBY.classe = PROF.classe;
     if (typeof PROF.armaIdx === "number") LOBBY.armaIdx = PROF.armaIdx;
-    bindEntry(); bindMenu(); bindLobby(); bindCustomize(); bindConfig(); bindControls(); bindEnd();
+    bindEntry(); bindMenu(); bindLobby(); bindCustomize(); bindConfig(); bindControls(); bindHudEdit(); bindEnd();
     refreshProfile(); renderRanking(); renderStats(); renderShop();
     setClasseUI(LOBBY.classe, true);
     initNet();
     fitCanvas();
     window.addEventListener("resize", fitCanvas);
+    window.addEventListener("orientationchange", () => setTimeout(fitCanvas, 200));
     // o jogo abre no LOBBY primeiro (o launcher é separado)
     LOBBY.playMode = "offline";
     window.SA_UI.show("screen-lobby");
@@ -155,6 +165,12 @@
       refreshLobby();
     });
     on("modoOnBtn", () => openOnlineCreate());
+    // escolha do controle antes da partida (espelha ⚙️ CONFIG e 🎛️ HUD)
+    on("lobSetas", () => { PROF.cfg.controle = "setas"; window.SA_PROFILE.save(PROF); applyTouchConfig(); });
+    on("lobJoy", () => { PROF.cfg.controle = "joystick"; window.SA_PROFILE.save(PROF); applyTouchConfig(); });
+    on("lobSizeP", () => setBtnSize("p"));
+    on("lobSizeM", () => setBtnSize("medio"));
+    on("lobSizeG", () => setBtnSize("g"));
     on("copyCodeBtn", () => {
       const link = "https://perchance.org/" + (window.generatorName || "") + "#sala=" + LOBBY.code;
       try { navigator.clipboard.writeText("STICK ARENA de Lucas — sala " + LOBBY.code + " " + link); } catch (e) {}
@@ -200,6 +216,7 @@
   }
   function startPressed() {
     saveEntryName();
+    enterFullscreen();
     if (LOBBY.playMode === "offline") {
       ensureBots(1 + LOBBY.nBots);
       if (LOBBY.players.length < 2) return toast("Aumente o nº de bots.");
@@ -521,10 +538,63 @@
   }
   function bindEnd() {
     on("againBtn", () => {
+      enterFullscreen();
       if (LOBBY.playMode === "offline") { ensureBots(1 + LOBBY.nBots); startMatch(); }
       else startMatch();
     });
     on("lobbyBtn", () => { window.SA_UI.show("screen-lobby"); refreshLobby(); });
+  }
+
+  // ---------- editor de HUD dentro do jogo ----------
+  const HUD_BTNS = ["dpad", "joyBase", "atkBtn", "jumpBtn", "powBtn"];
+  function bindHudEdit() {
+    on("hudBtn", () => { const p = $("hudEdit"); if (p) p.hidden = !p.hidden; });
+    on("hudClose", () => { setEditMove(false); $("hudEdit").hidden = true; window.SA_PROFILE.save(PROF); toast("HUD salva!"); });
+    on("hudSetas", () => { PROF.cfg.controle = "setas"; window.SA_PROFILE.save(PROF); applyTouchConfig(); });
+    on("hudJoy", () => { PROF.cfg.controle = "joystick"; window.SA_PROFILE.save(PROF); applyTouchConfig(); });
+    on("hudSizeP", () => setBtnSize("p"));
+    on("hudSizeM", () => setBtnSize("medio"));
+    on("hudSizeG", () => setBtnSize("g"));
+    on("hudMove", () => setEditMove(!EDIT_MOVE));
+    on("hudReset", () => { PROF.cfg.btnPos = {}; window.SA_PROFILE.save(PROF); applyTouchConfig(); toast("Posições voltaram ao padrão."); });
+    HUD_BTNS.forEach(makeDraggable);
+  }
+  function setBtnSize(s) { PROF.cfg.btnSize = s; window.SA_PROFILE.save(PROF); applyTouchConfig(); }
+  function setEditMove(v) {
+    EDIT_MOVE = v;
+    try { document.body.classList.toggle("editing", v); } catch (e) {}
+    const b = $("hudMove"); if (b) b.textContent = "📐 Mover botões: " + (v ? "ON" : "OFF");
+    if (v) toast("Arraste os botões pro lugar que quiser. Depois desligue.");
+  }
+  function makeDraggable(id) {
+    const el = $(id); if (!el) return;
+    let sx = 0, sy = 0, ox = 0, oy = 0, pid = null;
+    el.addEventListener("pointerdown", (e) => {
+      if (!EDIT_MOVE) return;
+      e.preventDefault(); e.stopPropagation();
+      pid = e.pointerId;
+      try { el.setPointerCapture(pid); } catch (err) {}
+      const p = (PROF.cfg.btnPos && PROF.cfg.btnPos[id]) || { x: 0, y: 0 };
+      ox = p.x; oy = p.y; sx = e.clientX; sy = e.clientY;
+    });
+    el.addEventListener("pointermove", (e) => {
+      if (!EDIT_MOVE || e.pointerId !== pid) return;
+      e.preventDefault();
+      el.style.transform = "translate(" + Math.round(ox + e.clientX - sx) + "px," + Math.round(oy + e.clientY - sy) + "px)";
+    });
+    const end = (e) => {
+      if (e.pointerId !== pid) return;
+      pid = null;
+      if (!EDIT_MOVE) return;
+      const m = el.style.transform.match(/translate\((-?\d+)px,\s*(-?\d+)px\)/);
+      if (m) {
+        if (!PROF.cfg.btnPos) PROF.cfg.btnPos = {};
+        PROF.cfg.btnPos[id] = { x: +m[1], y: +m[2] };
+        window.SA_PROFILE.save(PROF);
+      }
+    };
+    el.addEventListener("pointerup", end);
+    el.addEventListener("pointercancel", end);
   }
 
   // ---------- loop 60Hz fixo ----------
@@ -620,6 +690,18 @@
     const s = $("cfgBtnSize"); if (s) s.value = PROF.cfg.btnSize || "medio";
     const cs = $("cfgScore"); if (cs) cs.checked = PROF.cfg.showScore !== false;
     const ck = $("cfgKill"); if (ck) ck.checked = PROF.cfg.showKill !== false;
+    const isJoy = PROF.cfg.controle === "joystick";
+    const mark = (id, active) => { const b = $(id); if (b) b.classList.toggle("on", !!active); };
+    mark("lobSetas", !isJoy); mark("lobJoy", isJoy);
+    mark("hudSetas", !isJoy); mark("hudJoy", isJoy);
+    mark("lobSizeP", PROF.cfg.btnSize === "p"); mark("lobSizeM", !PROF.cfg.btnSize || PROF.cfg.btnSize === "medio"); mark("lobSizeG", PROF.cfg.btnSize === "g");
+    mark("hudSizeP", PROF.cfg.btnSize === "p"); mark("hudSizeM", !PROF.cfg.btnSize || PROF.cfg.btnSize === "medio"); mark("hudSizeG", PROF.cfg.btnSize === "g");
+    const bp = PROF.cfg.btnPos || {};
+    ["dpad", "joyBase", "atkBtn", "jumpBtn", "powBtn"].forEach(id => {
+      const b = $(id); if (!b) return;
+      const p = bp[id];
+      b.style.transform = p ? "translate(" + p.x + "px," + p.y + "px)" : "";
+    });
   }
   function bindControls() {
     const tryLandscape = () => {
@@ -648,8 +730,11 @@
     });
     document.addEventListener("pointerup", () => { keyAtkHeld = false; });
     bindHold("atkBtn", (v) => joyAtkHeld = v);
-    on("powBtn", () => { INPUT.powerEdge = true; });
-    on("jumpBtn", () => { INPUT.jump = true; INPUT.jumpPressed = true; setTimeout(() => INPUT.jump = false, 130); });
+    // pulo e poder no pointerdown: responde na hora, mesmo segurando outro botão (andar + pular)
+    const jd = $("jumpBtn");
+    if (jd) jd.addEventListener("pointerdown", (e) => { if (EDIT_MOVE) return; e.preventDefault(); INPUT.jump = true; INPUT.jumpPressed = true; setTimeout(() => INPUT.jump = false, 130); });
+    const pd = $("powBtn");
+    if (pd) pd.addEventListener("pointerdown", (e) => { if (EDIT_MOVE) return; e.preventDefault(); INPUT.powerEdge = true; });
     // D-pad estilo Hellbound: setas discretas
     bindHold("leftBtn", (v) => DPAD.left = v);
     bindHold("rightBtn", (v) => DPAD.right = v);
@@ -669,7 +754,7 @@
         JOY.active = true;
       };
       const resetStick = () => { stick.style.transform = "translate(0,0)"; JOY.dx = JOY.dy = 0; INPUT.x = 0; JOY.down = false; JOY.active = false; JOY.jumpSent = false; };
-      base.addEventListener("pointerdown", (e) => { JOY.id = e.pointerId; const r = base.getBoundingClientRect(); JOY.cx = r.left + r.width / 2; JOY.cy = r.top + r.height / 2; try { base.setPointerCapture(e.pointerId); } catch (err) {} setStick(e.clientX - JOY.cx, e.clientY - JOY.cy); });
+      base.addEventListener("pointerdown", (e) => { if (EDIT_MOVE) return; JOY.id = e.pointerId; const r = base.getBoundingClientRect(); JOY.cx = r.left + r.width / 2; JOY.cy = r.top + r.height / 2; try { base.setPointerCapture(e.pointerId); } catch (err) {} setStick(e.clientX - JOY.cx, e.clientY - JOY.cy); });
       base.addEventListener("pointermove", (e) => { if (e.pointerId === JOY.id) setStick(e.clientX - JOY.cx, e.clientY - JOY.cy); });
       const up = (e) => { if (e.pointerId === JOY.id) { JOY.id = null; resetStick(); } };
       base.addEventListener("pointerup", up); base.addEventListener("pointercancel", up);
@@ -678,7 +763,7 @@
   }
   function bindHold(id, fn) {
     const e = $(id); if (!e) return;
-    e.addEventListener("pointerdown", (ev) => { ev.preventDefault(); fn(true); });
+    e.addEventListener("pointerdown", (ev) => { if (EDIT_MOVE) return; ev.preventDefault(); fn(true); });
     ["pointerup", "pointerleave", "pointercancel"].forEach(ev => e.addEventListener(ev, () => fn(false)));
   }
   function fitCanvas() {
@@ -689,6 +774,17 @@
       if (cv.width !== w * dpr || cv.height !== h * dpr) {
         // mantém lógica 960x540, só melhora nitidez
         cv.getContext("2d").setTransform(1, 0, 0, 1, 0, 0);
+      }
+    } catch (e) {}
+    // na luta: canvas ocupa a tela toda (chão ao teto), mapa inteiro sempre visível
+    try {
+      if (document.body.classList.contains("playing")) {
+        const s = Math.min(window.innerWidth / 960, window.innerHeight / 540);
+        cv.style.setProperty("width", Math.max(1, Math.floor(960 * s)) + "px", "important");
+        cv.style.setProperty("height", Math.max(1, Math.floor(540 * s)) + "px", "important");
+      } else {
+        cv.style.removeProperty("width");
+        cv.style.removeProperty("height");
       }
     } catch (e) {}
   }
