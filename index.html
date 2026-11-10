@@ -1,11 +1,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<link rel="icon" href="src/icon.jpg">
+<link rel="icon" type="image/png" href="src/icon-512.png">
 <link rel="manifest" href="src/manifest.webmanifest">
 <meta name="theme-color" content="#0a0618">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link rel="apple-touch-icon" href="src/icon-512.jpg">
+<link rel="apple-touch-icon" href="src/icon-192.png">
 <style>
 :root{--bg:#0a0618;--card:#1b1038;--line:#3b2a6d;--acc:#8b5cf6;--acc2:#22d3ee;--txt:#f1efff;--mut:#a99fd6;--gold:#fbbf24;--red:#ef4444;--green:#22c55e;--sat:env(safe-area-inset-top);--sab:env(safe-area-inset-bottom)}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -48,11 +48,16 @@ select,input{background:#0f0a24;color:var(--txt);border:1px solid var(--line);bo
 #killfeed{position:absolute;top:52px;right:6px;display:flex;flex-direction:column;gap:4px;align-items:flex-end;pointer-events:none;z-index:3;max-width:44%}
 .kf{background:rgba(0,0,0,.5);border:1px solid rgba(59,42,109,.7);padding:3px 8px;border-radius:7px;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 #touch{position:absolute;left:0;right:0;bottom:calc(4px + var(--sab));display:flex;justify-content:space-between;align-items:flex-end;padding:0 8px;pointer-events:none;z-index:4}
-#joyBase{width:92px;height:92px;border-radius:50%;background:rgba(139,92,246,.10);border:2px solid rgba(139,92,246,.35);pointer-events:auto;position:relative;touch-action:none}
-#joyStick{width:42px;height:42px;border-radius:50%;background:linear-gradient(180deg,#8b5cf6,#22d3ee);position:absolute;left:23px;top:23px}
-.tbtns{display:flex;gap:8px;pointer-events:auto;align-items:flex-end}
-.tbtn{width:52px;height:52px;border-radius:50%;font-size:11px;font-weight:800;padding:0;opacity:.78}
-#atkBtn{width:64px;height:64px;font-size:13px;background:linear-gradient(180deg,#ef4444,#991b1b);border-color:#fca5a5;opacity:.85}
+#dpad{display:flex;flex-direction:column;align-items:center;gap:6px;pointer-events:auto;touch-action:none}
+.tbtns{display:flex;gap:6px;pointer-events:auto;align-items:flex-end}
+#dpad .drow{display:flex;gap:6px}
+#joyBase{width:92px;height:92px;border-radius:50%;background:rgba(0,0,0,.45);border:2px solid rgba(255,255,255,.35);pointer-events:auto;position:relative;touch-action:none}
+#joyStick{width:42px;height:42px;border-radius:50%;background:rgba(255,255,255,.75);position:absolute;left:23px;top:23px}
+.tbtn{width:48px;height:48px;border-radius:50%;font-size:15px;font-weight:900;padding:0;opacity:.65;background:rgba(0,0,0,.55);border:2px solid rgba(255,255,255,.35);color:#fff}
+.tbtn small{display:block;font-size:9px;font-weight:700;opacity:.8}
+#atkBtn{width:60px;height:60px;font-size:18px;background:rgba(0,0,0,.55);border-color:rgba(255,255,255,.5);opacity:.75}
+#jumpBtn{width:56px;height:56px;font-size:18px}
+#powBtn{width:48px;height:48px}
 .stat{background:#150c30;border:1px solid var(--line);border-radius:12px;padding:10px;min-width:110px}
 .stat b{display:block;font-size:18px}
 .stat small{color:var(--mut)}
@@ -66,10 +71,9 @@ select,input{background:#0f0a24;color:var(--txt);border:1px solid var(--line);bo
 .kbd{background:#0f0a24;border:1px solid var(--line);border-radius:6px;padding:1px 7px;font-size:13px}
 .launcherIcon{width:120px;height:120px;border-radius:28px;border:2px solid var(--acc2);box-shadow:0 0 24px rgba(34,211,238,.4)}
 @media(max-width:640px){
-  .tbtn{width:48px;height:48px;font-size:10px;opacity:.7}
-  #atkBtn{width:60px;height:60px;opacity:.8}
-  #joyBase{width:84px;height:84px}
-  #joyStick{width:38px;height:38px;left:21px;top:21px}
+  .tbtn{width:50px;height:50px;font-size:15px}
+  #atkBtn{width:62px;height:62px;font-size:18px}
+  #jumpBtn{width:58px;height:58px}
   .hudbox{font-size:10px;padding:3px 6px}
   #hudScore{display:none}
   #killfeed{top:48px}
@@ -168,7 +172,7 @@ self.onmessage = function(e){
 <!-- LAUNCHER / ENTRADA -->
 <div class="screen" id="screen-entry">
   <div class="card">
-    <img class="launcherIcon" src="src/icon.jpg" alt="STICK ARENA">
+    <img class="launcherIcon" src="src/icon-512.png" alt="STICK ARENA">
     <div class="profilebar"><span>👤 <b id="pName">—</b></span><span>⭐ <b id="pLevel">Nv 1</b></span><span id="pTier">Bronze</span><span>🪙 <b id="pCoins">0</b></span><span id="netStatus" class="muted">● offline</span></div>
     <div class="xpbar"><i id="xpFill"></i></div>
     <small class="muted" id="xpTxt">0/100 XP</small>
@@ -186,7 +190,7 @@ self.onmessage = function(e){
     <button id="cfgBtn">⚙️ CONFIG</button>
     <button id="helpBtn" class="ghost">❓ AJUDA</button>
   </div>
-  <p class="muted">PC: <span class="kbd">A</span><span class="kbd">D</span> mover • <span class="kbd">W</span>/Espaço pular (2x) • clique/<span class="kbd">J</span> atacar • <span class="kbd">K</span> poder • <span class="kbd">E</span> trocar arma. Celular: joystick + botões.</p>
+  <p class="muted">PC: <span class="kbd">A</span><span class="kbd">D</span> mover • <span class="kbd">W</span>/Espaço pular (2x) • clique/<span class="kbd">J</span> atacar • <span class="kbd">K</span> poder. Arma só no lobby. Celular: joystick + botões.</p>
 </div>
 
 <!-- MENU antigo vira só atalho -->
@@ -235,16 +239,19 @@ self.onmessage = function(e){
     </div>
     <div id="killfeed"></div>
     <div id="touch">
-      <div id="joyBase"><div id="joyStick"></div></div>
+      <div id="dpad">
+        <button class="tbtn" id="upBtn">▲</button>
+        <div class="drow"><button class="tbtn" id="leftBtn">◀</button><button class="tbtn" id="downBtn">▼</button><button class="tbtn" id="rightBtn">▶</button></div>
+      </div>
+      <div id="joyBase" hidden><div id="joyStick"></div></div>
       <div class="tbtns">
-        <button class="tbtn ghost" id="wpnBtn">🔄<br>arma</button>
-        <button class="tbtn ghost" id="jumpBtn">⬆️<br>pulo</button>
-        <button class="tbtn" id="powBtn">✨<br>esp</button>
-        <button class="tbtn" id="atkBtn">⚔️</button>
+        <button class="tbtn" id="powBtn">K<small>esp</small></button>
+        <button class="tbtn" id="atkBtn">J</button>
+        <button class="tbtn" id="jumpBtn">▲</button>
       </div>
     </div>
   </div>
-  <p class="muted">Arraste joystick: ← → mover • ↑ pular • ↓ agachar. ⚔️ atacar • ✨ poder • 🔄 arma.</p>
+  <p class="muted">Celular: ◀ ▶ mover • ▲ pular • ▼ agachar • J atacar • K poder. Arma só troca no lobby.</p>
 </div>
 
 <!-- FIM -->
@@ -279,6 +286,12 @@ self.onmessage = function(e){
     <div class="row"><label>Nome <input id="cfgName" maxlength="16"></label></div>
     <div class="row"><label><input type="checkbox" id="cfgSom"> Som</label>
     <label>Qualidade <select id="cfgQual"><option value="alta">Alta</option><option value="baixa">Baixa (celular fraco)</option></select></label></div>
+    <div class="card" style="box-shadow:none"><h3 style="margin:4px">🎮 Controle + HUD (editor)</h3>
+      <div class="row"><label>Controle <select id="cfgCtrl"><option value="setas">Setas (D-pad)</option><option value="joystick">Joystick analógico</option></select></label>
+      <label>Botões <select id="cfgBtnSize"><option value="p">Pequenos</option><option value="medio">Médios</option><option value="g">Grandes</option></select></label></div>
+      <div class="row"><label><input type="checkbox" id="cfgScore"> Placar na HUD</label>
+      <label><input type="checkbox" id="cfgKill"> Killfeed</label></div>
+      <p class="muted">Setas = discreto igual Hellbound. Joystick = analógico (arrasta). Vale na hora.</p></div>
     <div class="row"><label style="flex:1;min-width:260px">Servidor Render (GitHub) <input id="cfgServer" placeholder="https://stick-arena.onrender.com" style="width:100%"></label></div>
     <p class="muted">No Perchance deixe vazio (usa servidor embutido). No GitHub Pages cole a URL do Render.</p>
     <div class="row"><button id="saveCfgBtn">💾 Salvar</button><button data-back class="ghost">← Voltar</button></div>
@@ -292,7 +305,7 @@ self.onmessage = function(e){
     <p><b>Launcher:</b> 🌐 ONLINE = com amigos por código de 6 letras. 🤖 OFFLINE = só você + bots (dá pra escolher 1–7 e dificuldade).</p>
     <p><b>Objetivo:</b> FFA/equipes 90s mais kills; sobrevivência 1 vida; rei segure o círculo até 100 pts.</p>
     <p><b>Classes:</b> ⚔️ Guerreiro (Fúria), 🔮 Mago (Teleporte), 🏹 Atirador (Reflexo), ⚙️ Engenheiro (Torreta).</p>
-    <p><b>Armas:</b> 20 no total, 5 por classe, cada uma com desenho e bala próprios. Troque com <span class="kbd">E</span>/🔄.</p>
+    <p><b>Armas:</b> 20 no total, 5 por classe, cada uma com desenho e bala próprios. Escolha no lobby — sem troca na partida.</p>
     <p><b>PC:</b> A/D mover, W/Espaço pular (2x, com coyote-time), S agachar, clique/J atacar, K poder.</p>
     <p><b>Celular:</b> joystick esquerda (↑ pula, ↓ agacha), botões direita: ⚔️ grande atacar, ✨ poder, pulo, arma. HUD fina no topo pra não tapar a visão.</p>
     <button data-back class="ghost">← Voltar</button>
