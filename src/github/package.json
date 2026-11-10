@@ -1,0 +1,19 @@
+{
+  "name": "stick-arena",
+  "version": "1.0.0",
+  "description": "STICK ARENA — batalha 2D multiplayer de stickmen",
+  "type": "module",
+  "scripts": {
+    "start": "node server/server.js",
+    "dev": "node --watch server/server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "socket.io": "^4.7.5",
+    "pg": "^8.11.3",
+    "cors": "^2.8.5",
+    "jsonwebtoken": "^9.0.2",
+    "bcryptjs": "^2.4.3"
+  },
+  "engines": { "node": ">=18" }
+}
