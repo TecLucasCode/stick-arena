@@ -1,0 +1,308 @@
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<link rel="icon" href="src/icon.jpg">
+<link rel="manifest" href="src/manifest.webmanifest">
+<meta name="theme-color" content="#0a0618">
+<style>
+:root{--bg:#0a0618;--card:#1b1038;--line:#3b2a6d;--acc:#8b5cf6;--acc2:#22d3ee;--txt:#f1efff;--mut:#a99fd6;--gold:#fbbf24;--red:#ef4444;--green:#22c55e;--sat:env(safe-area-inset-top);--sab:env(safe-area-inset-bottom)}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0;background:radial-gradient(1200px 600px at 20% -10%,#2a165e 0%,var(--bg) 55%),var(--bg);color:var(--txt);font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Arial,sans-serif;text-align:center;min-height:100vh}
+body{padding:calc(8px + var(--sat)) 8px calc(16px + var(--sab))}
+h1.logo{font-size:clamp(34px,7vw,60px);margin:8px 0 2px;letter-spacing:2px;background:linear-gradient(90deg,#a78bfa,#22d3ee,#f472b6,#a78bfa);-webkit-background-clip:text;background-clip:text;color:transparent}
+.sub{color:var(--mut);margin:0 0 8px}
+.creator{color:var(--gold);font-weight:700;margin:0 0 10px}
+.screen{display:none;max-width:980px;margin:0 auto;padding:8px}
+.screen.active{display:block;animation:fade .22s ease}
+@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1}}
+.card{background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02));border:1px solid var(--line);border-radius:16px;padding:14px;margin:10px auto;box-shadow:0 0 24px rgba(139,92,246,.18);max-width:860px}
+.row{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;align-items:center}
+button,.btn{background:linear-gradient(180deg,#7c3aed,#5b21b6);border:1px solid #a78bfa;color:#fff;border-radius:12px;padding:12px 18px;font-size:16px;font-weight:700;cursor:pointer}
+button:active{transform:translateY(2px)}
+button:disabled{opacity:.45}
+button.ghost{background:#221645;box-shadow:none;border-color:var(--line)}
+button.big{font-size:19px;padding:14px 30px}
+.menugrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;max-width:640px;margin:12px auto}
+.profilebar{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;color:var(--mut);font-size:14px}
+.xpbar{height:10px;background:#0f0a24;border:1px solid var(--line);border-radius:99px;overflow:hidden;max-width:420px;margin:8px auto}
+.xpbar i{display:block;height:100%;background:linear-gradient(90deg,var(--acc),var(--acc2));width:0%}
+.plob{display:flex;justify-content:space-between;background:#150c30;border:1px solid var(--line);border-radius:10px;padding:8px 12px;margin:6px 0}
+.plob.me{border-color:var(--gold)}
+.cls{background:#150c30;border:2px solid var(--line);border-radius:14px;padding:10px;min-width:150px;flex:1;cursor:pointer;color:var(--txt)}
+.cls.sel{border-color:var(--acc2);box-shadow:0 0 14px rgba(34,211,238,.5)}
+.cls .ci{font-size:34px}
+.cls small{display:block;color:var(--mut);font-size:11px;margin-top:4px}
+.wpn{background:#150c30;border:2px solid var(--line);border-radius:10px;color:var(--txt);padding:8px;min-width:150px;max-width:200px}
+.wpn.sel{border-color:var(--gold)}
+.wpn small{display:block;color:var(--mut);font-size:11px}
+select,input{background:#0f0a24;color:var(--txt);border:1px solid var(--line);border-radius:10px;padding:10px;font-size:15px}
+.muted{color:var(--mut)}
+#gameWrap{position:relative;margin:0 auto;max-width:980px}
+#gameCv{background:#000;border-radius:14px;border:1px solid var(--line);width:100%!important;height:auto!important;aspect-ratio:960/540;display:block;touch-action:none}
+#hud{position:absolute;top:6px;left:6px;right:6px;display:flex;gap:6px;justify-content:space-between;align-items:flex-start;pointer-events:none;font-size:11px;z-index:3}
+.hudbox{background:rgba(0,0,0,.48);border:1px solid rgba(59,42,109,.8);border-radius:8px;padding:4px 8px;text-align:left;line-height:1.3;max-width:33%;backdrop-filter:blur(2px)}
+#hudHpBar{width:90px;max-width:20vw;height:6px;background:#111;border-radius:99px;overflow:hidden;margin-top:2px}
+#hudHp{display:block;height:100%;background:var(--green);width:100%}
+#killfeed{position:absolute;top:52px;right:6px;display:flex;flex-direction:column;gap:4px;align-items:flex-end;pointer-events:none;z-index:3;max-width:44%}
+.kf{background:rgba(0,0,0,.5);border:1px solid rgba(59,42,109,.7);padding:3px 8px;border-radius:7px;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+#touch{position:absolute;left:0;right:0;bottom:calc(4px + var(--sab));display:flex;justify-content:space-between;align-items:flex-end;padding:0 8px;pointer-events:none;z-index:4}
+#joyBase{width:92px;height:92px;border-radius:50%;background:rgba(139,92,246,.10);border:2px solid rgba(139,92,246,.35);pointer-events:auto;position:relative;touch-action:none}
+#joyStick{width:42px;height:42px;border-radius:50%;background:linear-gradient(180deg,#8b5cf6,#22d3ee);position:absolute;left:23px;top:23px}
+.tbtns{display:flex;gap:8px;pointer-events:auto;align-items:flex-end}
+.tbtn{width:52px;height:52px;border-radius:50%;font-size:11px;font-weight:800;padding:0;opacity:.78}
+#atkBtn{width:64px;height:64px;font-size:13px;background:linear-gradient(180deg,#ef4444,#991b1b);border-color:#fca5a5;opacity:.85}
+.stat{background:#150c30;border:1px solid var(--line);border-radius:12px;padding:10px;min-width:110px}
+.stat b{display:block;font-size:18px}
+.stat small{color:var(--mut)}
+#statGrid,.shoplist{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+.rrow,.hrow{display:flex;justify-content:space-between;gap:10px;background:#150c30;border:1px solid var(--line);border-radius:10px;padding:8px 12px;margin:6px 0;font-size:14px}
+.rrow.me{border-color:var(--gold)}
+.shop{background:#150c30;border:1px solid var(--line);border-radius:12px;padding:10px;width:200px}
+.shop.eq{border-color:var(--green)}
+.shop button{width:100%;margin-top:8px;padding:8px}
+#toast{position:fixed;left:50%;bottom:calc(22px + var(--sab));transform:translateX(-50%);background:#1e1445;border:1px solid var(--acc2);padding:10px 18px;border-radius:12px;z-index:99;max-width:92vw}
+.kbd{background:#0f0a24;border:1px solid var(--line);border-radius:6px;padding:1px 7px;font-size:13px}
+.launcherIcon{width:120px;height:120px;border-radius:28px;border:2px solid var(--acc2);box-shadow:0 0 24px rgba(34,211,238,.4)}
+@media(max-width:640px){
+  .tbtn{width:48px;height:48px;font-size:10px;opacity:.7}
+  #atkBtn{width:60px;height:60px;opacity:.8}
+  #joyBase{width:84px;height:84px}
+  #joyStick{width:38px;height:38px;left:21px;top:21px}
+  .hudbox{font-size:10px;padding:3px 6px}
+  #hudScore{display:none}
+  #killfeed{top:48px}
+  #menu h1.logo{font-size:30px}
+  .sub{font-size:13px}
+}
+@media(max-width:640px) and (orientation:portrait){
+  #gameWrap{max-width:100vw}
+  #touch{bottom:2px}
+}
+@media(pointer:fine){#touch{display:none}}
+</style>
+
+<script type="text/x-server-plugin">
+// STICK ARENA por Lucas — servidor autoritativo (salas, presença, dano validado).
+// Visível a todos: sem segredos. Salas efêmeras; progressão fica no cliente.
+var rooms = {}; // code -> {code, host, players:{id:{id,name,classe}}, started, modo, arena, seq, hp:{id:hp}}
+var conns = {}; // connId -> {room, pid}
+function getRoom(code){ code = String(code||"").toUpperCase(); return rooms[code]; }
+function roomList(r){ var list = []; for (var id in r.players) list.push(r.players[id]); return JSON.stringify({t:"players", code:r.code, list:list}); }
+self.onopen = function(e){ var c = e.conn; c.subscribe("lobby"); };
+self.onclose = function(e){
+  var info = conns[e.conn.id]; if(!info) return;
+  delete conns[e.conn.id];
+  var r = rooms[info.room]; if(!r) return;
+  delete r.players[info.pid]; delete r.hp[info.pid];
+  try{ e.conn.unsubscribe("room:"+r.code); }catch(err){}
+  var ids = Object.keys(r.players);
+  if(ids.length === 0){ delete rooms[r.code]; return; }
+  if(r.host === info.pid){ r.host = ids[0]; }
+  pubsub.publish("room:"+r.code, JSON.stringify({t:"room", code:r.code, host:r.host}));
+  pubsub.publish("room:"+r.code, roomList(r));
+};
+self.onmessage = function(e){
+  var msg; try{ msg = JSON.parse(e.data); }catch(err){ return; }
+  var c = e.conn, t = msg.t;
+  if(t === "hello"){ try{ c.send(JSON.stringify({t:"hi"})); }catch(err){} return; }
+  if(t === "create"){
+    var code = ""; var abc = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    for(var i=0;i<6;i++) code += abc[Math.floor(Math.random()*abc.length)];
+    rooms[code] = {code:code, host:msg.id, players:{}, started:false, modo:"ffa", arena:"vulcao", seq:0, hp:{}};
+    rooms[code].players[msg.id] = {id:msg.id, name:String((msg.name||"Jogador")).slice(0,16), classe:String(msg.classe||"guerreiro").slice(0,16)};
+    conns[c.id] = {room:code, pid:msg.id};
+    c.subscribe("room:"+code);
+    c.send(JSON.stringify({t:"room", code:code, host:msg.id}));
+    pubsub.publish("room:"+code, roomList(rooms[code]));
+    return;
+  }
+  if(t === "join"){
+    var r = getRoom(msg.code); if(!r){ c.send(JSON.stringify({t:"toast", msg:"Sala não encontrada"})); return; }
+    if(Object.keys(r.players).length >= 8){ c.send(JSON.stringify({t:"toast", msg:"Sala cheia"})); return; }
+    if(r.started){ c.send(JSON.stringify({t:"toast", msg:"Partida em andamento"})); return; }
+    r.players[msg.id] = {id:msg.id, name:String(msg.name||"Online").slice(0,16), classe:String(msg.classe||"guerreiro").slice(0,16)};
+    conns[c.id] = {room:r.code, pid:msg.id};
+    c.subscribe("room:"+r.code);
+    c.send(JSON.stringify({t:"room", code:r.code, host:r.host}));
+    pubsub.publish("room:"+r.code, roomList(r));
+    return;
+  }
+  if(t === "classe"){
+    var inf = conns[c.id]; if(!inf) return; var rr = rooms[inf.room]; if(!rr||rr.started) return;
+    if(rr.players[msg.id]){ rr.players[msg.id].classe = String(msg.classe||"guerreiro").slice(0,16); pubsub.publish("room:"+rr.code, roomList(rr)); }
+    return;
+  }
+  if(t === "start"){
+    var inf2 = conns[c.id]; if(!inf2) return; var r2 = rooms[inf2.room]; if(!r2) return;
+    if(r2.host !== msg.id) return;
+    if(Object.keys(r2.players).length < 2) return;
+    r2.started = true; r2.modo = String(msg.modo||"ffa").slice(0,16); r2.arena = String(msg.arena||"vulcao").slice(0,16);
+    for(var pid in r2.players) r2.hp[pid] = 100;
+    pubsub.publish("room:"+r2.code, JSON.stringify({t:"start", modo:r2.modo, arena:r2.arena}));
+    return;
+  }
+  if(t === "pos"){
+    var inf3 = conns[c.id]; if(!inf3) return; var r3 = rooms[inf3.room]; if(!r3) return;
+    if(typeof msg.x !== "number" || typeof msg.y !== "number") return;
+    msg.x = Math.max(0, Math.min(960, msg.x)); msg.y = Math.max(-100, Math.min(700, msg.y));
+    pubsub.publish("room:"+r3.code, JSON.stringify({t:"pos", id:msg.id, name:String(msg.name||"Online").slice(0,16), classe:String(msg.classe||"guerreiro").slice(0,16), x:msg.x|0, y:msg.y|0, vx:+msg.vx||0, vy:+msg.vy||0, hp:msg.hp|0, dir:msg.dir===1?1:-1, anim:String(msg.anim||"idle").slice(0,10), arma:msg.arma|0}));
+    return;
+  }
+  if(t === "atk"){
+    var inf4 = conns[c.id]; if(!inf4) return; var r4 = rooms[inf4.room]; if(!r4 || !r4.started) return;
+    r4.seq++;
+    pubsub.publish("room:"+r4.code, JSON.stringify({t:"atk", id:msg.id, seq:r4.seq, arma:msg.arma|0, x:msg.x|0, y:msg.y|0, dir:msg.dir===1?1:-1}));
+    return;
+  }
+};
+</script>
+
+<div id="menu">
+<h1 class="logo">STICK ARENA</h1>
+<p class="sub">Batalha 2D de stickmen — 4 classes • 20 armas • 5 arenas • 4 modos</p>
+<p class="creator">por Lucas ⚔️</p>
+</div>
+
+<!-- LAUNCHER / ENTRADA -->
+<div class="screen" id="screen-entry">
+  <div class="card">
+    <img class="launcherIcon" src="src/icon.jpg" alt="STICK ARENA">
+    <div class="profilebar"><span>👤 <b id="pName">—</b></span><span>⭐ <b id="pLevel">Nv 1</b></span><span id="pTier">Bronze</span><span>🪙 <b id="pCoins">0</b></span><span id="netStatus" class="muted">● offline</span></div>
+    <div class="xpbar"><i id="xpFill"></i></div>
+    <small class="muted" id="xpTxt">0/100 XP</small>
+    <div class="row" style="margin-top:8px"><label>Seu nome <input id="entryName" maxlength="16" style="width:170px"></label></div>
+  </div>
+  <div class="menugrid">
+    <button class="big" id="entryOnlineBtn">🌐 ONLINE<br><small>com amigos por código</small></button>
+    <button class="big" id="entryOfflineBtn">🤖 OFFLINE<br><small>contra bots</small></button>
+  </div>
+  <div class="menugrid">
+    <button id="playBtn2" class="ghost">▶ MENU</button>
+    <button id="customBtn">🎨 VISUAL</button>
+    <button id="rankBtn">🏆 RANKING</button>
+    <button id="statsBtn">📊 STATS</button>
+    <button id="cfgBtn">⚙️ CONFIG</button>
+    <button id="helpBtn" class="ghost">❓ AJUDA</button>
+  </div>
+  <p class="muted">PC: <span class="kbd">A</span><span class="kbd">D</span> mover • <span class="kbd">W</span>/Espaço pular (2x) • clique/<span class="kbd">J</span> atacar • <span class="kbd">K</span> poder • <span class="kbd">E</span> trocar arma. Celular: joystick + botões.</p>
+</div>
+
+<!-- MENU antigo vira só atalho -->
+<div class="screen" id="screen-menu">
+  <div class="card"><p class="muted">Use o launcher principal.</p><button id="playBtn" class="big">▶ VOLTAR AO LAUNCHER</button></div>
+</div>
+
+<!-- LOBBY -->
+<div class="screen" id="screen-lobby">
+  <div class="card">
+    <h2 style="margin:4px" id="lobbyTitle">🛡️ LOBBY</h2>
+    <p class="muted" id="hostTag"></p>
+    <div id="onlineRow">
+      <div class="row"><span class="muted">Código da sala:</span><h2 id="roomCode" style="margin:0;color:var(--gold);letter-spacing:3px">------</h2>
+      <button id="copyCodeBtn">📋 Compartilhar</button><button id="newCodeBtn" class="ghost">🎲 Nova</button></div>
+      <div class="row" style="margin-top:8px"><input id="joinInput" maxlength="6" placeholder="CÓDIGO DO AMIGO" style="width:170px;text-transform:uppercase"><button id="joinCodeBtn" class="ghost">Entrar</button></div>
+    </div>
+    <div id="offlineRow" hidden>
+      <div class="row">
+        <label class="muted">Nº bots <select id="botCount"><option value="1">1</option><option value="2">2</option><option value="3" selected>3</option><option value="5">5</option><option value="7">7</option></select></label>
+        <label class="muted">Dificuldade <select id="diffSel"><option value="facil">Fácil</option><option value="normal" selected>Normal</option><option value="dificil">Difícil</option></select></label>
+      </div>
+      <p class="muted">Bots só aparecem aqui no OFFLINE. No ONLINE você joga contra amigos.</p>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <label class="muted">Modo <select id="modeSel"><option value="ffa">Todos contra todos</option><option value="equipes">Equipes</option><option value="sobrevivencia">Sobrevivência</option><option value="rei">Rei da Arena</option></select></label>
+      <label class="muted">Arena <select id="arenaSel"><option value="vulcao">🌋 Vulcão</option><option value="gelo">❄️ Gelo</option><option value="floresta">🌲 Floresta</option><option value="cyber">🤖 Cyber</option><option value="deserto">🏜️ Deserto</option></select></label>
+    </div>
+  </div>
+  <div class="card"><h3 style="margin:4px">👥 <span id="lobbyCount"></span></h3><div id="lobbyList"></div>
+    <div class="row"><button id="addBotBtn" class="ghost">🤖 + Bot</button><button id="startBtn" class="big">⚔️ INICIAR</button></div>
+    <p class="muted">Online: anfitrião (👑) inicia. Classe travada na partida.</p>
+  </div>
+  <div class="card"><h3 style="margin:4px">Escolha sua classe</h3><div class="row" id="classCards"></div><h3 style="margin:8px 4px">Arma inicial (visual único)</h3><div class="row" id="weaponRow"></div></div>
+  <button data-back class="ghost">← Launcher</button>
+</div>
+
+<!-- JOGO -->
+<div class="screen" id="screen-game">
+  <div id="gameWrap">
+    <canvas id="gameCv" width="960" height="540"></canvas>
+    <div id="hud">
+      <div class="hudbox">🌋 <b id="hudArena">VULCÃO</b><br><span id="hudModo">FFA</span> • <b id="hudTime">1:30</b><br><span id="hudScore" class="muted"></span></div>
+      <div class="hudbox">❤️ <span id="hudHpTxt">100/100</span><div id="hudHpBar"><i id="hudHp"></i></div><span id="hudKda">0K • 0A</span></div>
+      <div class="hudbox">🔫 <b id="hudWpn">—</b><br>✨ <span id="hudPow">—</span></div>
+    </div>
+    <div id="killfeed"></div>
+    <div id="touch">
+      <div id="joyBase"><div id="joyStick"></div></div>
+      <div class="tbtns">
+        <button class="tbtn ghost" id="wpnBtn">🔄<br>arma</button>
+        <button class="tbtn ghost" id="jumpBtn">⬆️<br>pulo</button>
+        <button class="tbtn" id="powBtn">✨<br>esp</button>
+        <button class="tbtn" id="atkBtn">⚔️</button>
+      </div>
+    </div>
+  </div>
+  <p class="muted">Arraste joystick: ← → mover • ↑ pular • ↓ agachar. ⚔️ atacar • ✨ poder • 🔄 arma.</p>
+</div>
+
+<!-- FIM -->
+<div class="screen" id="screen-end">
+  <div class="card"><h1 id="endTitle">FIM</h1><p id="endWinner" class="muted"></p><div class="row" id="endRewards"></div></div>
+  <div class="card"><h3>Colocação</h3><div id="endTable"></div>
+  <div class="row"><button id="againBtn" class="big">🔁 DE NOVO</button><button id="lobbyBtn" class="ghost">🏠 Lobby</button></div></div>
+</div>
+
+<!-- CUSTOM -->
+<div class="screen" id="screen-custom">
+  <div class="card"><h2>🎨 VISUAL</h2><p class="muted">Moedas: <b id="shopCoins">🪙 0</b> — cosméticos não dão vantagem. por Lucas.</p><div class="shoplist" id="shopGrid"></div>
+  <div class="row"><button id="saveLookBtn">💾 Salvar</button><button data-back class="ghost">← Voltar</button></div></div>
+</div>
+
+<!-- RANK -->
+<div class="screen" id="screen-rank">
+  <div class="card"><h2>🏆 RANKING</h2><p id="myRank"></p><div id="rankList"></div>
+  <p class="muted">Bronze 0+ • Prata 300+ • Ouro 700+ • Platina 1200+ • Diamante 1800+ • Mestre 2500+.</p>
+  <button data-back class="ghost">← Voltar</button></div>
+</div>
+
+<!-- STATS -->
+<div class="screen" id="screen-stats">
+  <div class="card"><h2>📊 STATS</h2><div id="statGrid"></div></div>
+  <div class="card"><h3>Histórico</h3><div id="histList"></div><button data-back class="ghost">← Voltar</button></div>
+</div>
+
+<!-- CONFIG -->
+<div class="screen" id="screen-config">
+  <div class="card"><h2>⚙️ CONFIG</h2>
+    <div class="row"><label>Nome <input id="cfgName" maxlength="16"></label></div>
+    <div class="row"><label><input type="checkbox" id="cfgSom"> Som</label>
+    <label>Qualidade <select id="cfgQual"><option value="alta">Alta</option><option value="baixa">Baixa (celular fraco)</option></select></label></div>
+    <div class="row"><label style="flex:1;min-width:260px">Servidor Render (GitHub) <input id="cfgServer" placeholder="https://stick-arena.onrender.com" style="width:100%"></label></div>
+    <p class="muted">No Perchance deixe vazio (usa servidor embutido). No GitHub Pages cole a URL do Render.</p>
+    <div class="row"><button id="saveCfgBtn">💾 Salvar</button><button data-back class="ghost">← Voltar</button></div>
+  </div>
+</div>
+
+<!-- AJUDA -->
+<div class="screen" id="screen-help">
+  <div class="card" style="text-align:left;max-width:700px">
+    <h2>❓ COMO JOGAR — por Lucas</h2>
+    <p><b>Launcher:</b> 🌐 ONLINE = com amigos por código de 6 letras. 🤖 OFFLINE = só você + bots (dá pra escolher 1–7 e dificuldade).</p>
+    <p><b>Objetivo:</b> FFA/equipes 90s mais kills; sobrevivência 1 vida; rei segure o círculo até 100 pts.</p>
+    <p><b>Classes:</b> ⚔️ Guerreiro (Fúria), 🔮 Mago (Teleporte), 🏹 Atirador (Reflexo), ⚙️ Engenheiro (Torreta).</p>
+    <p><b>Armas:</b> 20 no total, 5 por classe, cada uma com desenho e bala próprios. Troque com <span class="kbd">E</span>/🔄.</p>
+    <p><b>PC:</b> A/D mover, W/Espaço pular (2x, com coyote-time), S agachar, clique/J atacar, K poder.</p>
+    <p><b>Celular:</b> joystick esquerda (↑ pula, ↓ agacha), botões direita: ⚔️ grande atacar, ✨ poder, pulo, arma. HUD fina no topo pra não tapar a visão.</p>
+    <button data-back class="ghost">← Voltar</button>
+  </div>
+</div>
+
+<div id="toast" hidden></div>
+<footer class="muted" style="margin-top:14px;font-size:13px">STICK ARENA • feito por <b style="color:var(--gold)">Lucas</b> ⚔️ • <span id="pCoins2"></span></footer>
+
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+<script>window.SA_SERVER_URL = ""; /* no GitHub Pages, o server é injetado em client/config-server.js */</script>
+<script src="src/config.js"></script>
+<script src="src/profile.js"></script>
+<script src="src/net.js"></script>
+<script src="src/engine.js"></script>
+<script src="src/ui.js"></script>
+<script src="src/game.js"></script>

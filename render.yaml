@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: stick-arena
+    env: node
+    buildCommand: npm install --prefix server && npm install --prefix server
+    startCommand: npm start --prefix server
+    envVars:
+      - key: CLIENT_URL
+        value: https://SEU-USUARIO.github.io/stick-arena
