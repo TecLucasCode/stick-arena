@@ -92,10 +92,11 @@ select,input{background:#0f0a24;color:var(--txt);border:1px solid var(--line);bo
 <script type="text/x-server-plugin">
 // STICK ARENA por Lucas — servidor autoritativo (salas, presença, dano validado).
 // Visível a todos: sem segredos. Salas efêmeras; progressão fica no cliente.
-var rooms = {}; // code -> {code, host, players:{id:{id,name,classe}}, started, modo, arena, seq, hp:{id:hp}}
+var rooms = {}; // code -> {code, host, players:{id:{id,name,classe,arma,ready,voto,isBot}}, started, modo, arena, seq, hp:{id:hp}}
 var conns = {}; // connId -> {room, pid}
 function getRoom(code){ code = String(code||"").toUpperCase(); return rooms[code]; }
 function roomList(r){ var list = []; for (var id in r.players) list.push(r.players[id]); return JSON.stringify({t:"players", code:r.code, list:list}); }
+function firstHuman(r){ for (var id in r.players) if(!r.players[id].isBot) return id; var ks = Object.keys(r.players); return ks[0]; }
 self.onopen = function(e){ var c = e.conn; c.subscribe("lobby"); };
 self.onclose = function(e){
   var info = conns[e.conn.id]; if(!info) return;
@@ -104,8 +105,10 @@ self.onclose = function(e){
   delete r.players[info.pid]; delete r.hp[info.pid];
   try{ e.conn.unsubscribe("room:"+r.code); }catch(err){}
   var ids = Object.keys(r.players);
+  var humans = ids.filter(function(id){ return r.players[id] && !r.players[id].isBot; });
+  if(humans.length === 0 && ids.length > 0){ delete rooms[r.code]; return; }
   if(ids.length === 0){ delete rooms[r.code]; return; }
-  if(r.host === info.pid){ r.host = ids[0]; }
+  if(r.host === info.pid){ r.host = firstHuman(r); }
   pubsub.publish("room:"+r.code, JSON.stringify({t:"room", code:r.code, host:r.host}));
   pubsub.publish("room:"+r.code, roomList(r));
 };
@@ -117,7 +120,7 @@ self.onmessage = function(e){
     var code = ""; var abc = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
     for(var i=0;i<6;i++) code += abc[Math.floor(Math.random()*abc.length)];
     rooms[code] = {code:code, host:msg.id, players:{}, started:false, modo:"ffa", arena:"vulcao", seq:0, hp:{}};
-    rooms[code].players[msg.id] = {id:msg.id, name:String((msg.name||"Jogador")).slice(0,16), classe:String(msg.classe||"guerreiro").slice(0,16)};
+    rooms[code].players[msg.id] = {id:msg.id, name:String((msg.name||"Jogador")).slice(0,16), classe:String(msg.classe||"guerreiro").slice(0,16), arma:(msg.arma|0)||0, ready:true, voto:null, isBot:false};
     conns[c.id] = {room:code, pid:msg.id};
     c.subscribe("room:"+code);
     c.send(JSON.stringify({t:"room", code:code, host:msg.id}));
@@ -128,7 +131,7 @@ self.onmessage = function(e){
     var r = getRoom(msg.code); if(!r){ c.send(JSON.stringify({t:"toast", msg:"Sala não encontrada"})); return; }
     if(Object.keys(r.players).length >= 8){ c.send(JSON.stringify({t:"toast", msg:"Sala cheia"})); return; }
     if(r.started){ c.send(JSON.stringify({t:"toast", msg:"Partida em andamento"})); return; }
-    r.players[msg.id] = {id:msg.id, name:String(msg.name||"Online").slice(0,16), classe:String(msg.classe||"guerreiro").slice(0,16)};
+    r.players[msg.id] = {id:msg.id, name:String(msg.name||"Online").slice(0,16), classe:String(msg.classe||"guerreiro").slice(0,16), arma:(msg.arma|0)||0, ready:false, voto:null, isBot:false};
     conns[c.id] = {room:r.code, pid:msg.id};
     c.subscribe("room:"+r.code);
     c.send(JSON.stringify({t:"room", code:r.code, host:r.host}));
@@ -137,13 +140,41 @@ self.onmessage = function(e){
   }
   if(t === "classe"){
     var inf = conns[c.id]; if(!inf) return; var rr = rooms[inf.room]; if(!rr||rr.started) return;
-    if(rr.players[msg.id]){ rr.players[msg.id].classe = String(msg.classe||"guerreiro").slice(0,16); pubsub.publish("room:"+rr.code, roomList(rr)); }
+    if(rr.players[msg.id]){ rr.players[msg.id].classe = String(msg.classe||"guerreiro").slice(0,16); rr.players[msg.id].arma = (msg.arma|0)||0; if(!rr.players[msg.id].isBot) rr.players[msg.id].ready = false; pubsub.publish("room:"+rr.code, roomList(rr)); }
+    return;
+  }
+  if(t === "pronto"){
+    var infp = conns[c.id]; if(!infp) return; var rp = rooms[infp.room]; if(!rp||rp.started) return;
+    if(rp.players[msg.id] && !rp.players[msg.id].isBot){ rp.players[msg.id].ready = !!msg.ready; pubsub.publish("room:"+rp.code, roomList(rp)); }
+    return;
+  }
+  if(t === "voto"){
+    var infv = conns[c.id]; if(!infv) return; var rv = rooms[infv.room]; if(!rv||rv.started) return;
+    var av = String(msg.arena||"").slice(0,16);
+    if(rv.players[msg.id] && !rv.players[msg.id].isBot){ rv.players[msg.id].voto = av || null; pubsub.publish("room:"+rv.code, roomList(rv)); }
+    return;
+  }
+  if(t === "addbot"){
+    var infb = conns[c.id]; if(!infb) return; var rb = rooms[infb.room]; if(!rb||rb.started) return;
+    if(rb.host !== msg.id) return;
+    if(Object.keys(rb.players).length >= 8){ c.send(JSON.stringify({t:"toast", msg:"Sala cheia"})); return; }
+    var bid = "bot" + Math.random().toString(36).slice(2,7);
+    var cls = ["guerreiro","mago","atirador","engenheiro"];
+    rb.players[bid] = {id:bid, name:"BOT "+bid.slice(3,6).toUpperCase(), classe:String(msg.classe||cls[Math.floor(Math.random()*4)]), arma:Math.floor(Math.random()*5), ready:true, voto:null, isBot:true};
+    pubsub.publish("room:"+rb.code, roomList(rb));
+    return;
+  }
+  if(t === "rmbot"){
+    var infr = conns[c.id]; if(!infr) return; var rrm = rooms[infr.room]; if(!rrm||rrm.started) return;
+    if(rrm.host !== msg.id) return;
+    if(rrm.players[msg.bot] && rrm.players[msg.bot].isBot){ delete rrm.players[msg.bot]; pubsub.publish("room:"+rrm.code, roomList(rrm)); }
     return;
   }
   if(t === "start"){
     var inf2 = conns[c.id]; if(!inf2) return; var r2 = rooms[inf2.room]; if(!r2) return;
     if(r2.host !== msg.id) return;
     if(Object.keys(r2.players).length < 2) return;
+    for(var _id in r2.players){ if(!r2.players[_id].isBot && !r2.players[_id].ready){ c.send(JSON.stringify({t:"toast", msg:"Nem todos apertaram PRONTO"})); return; } }
     r2.started = true; r2.modo = String(msg.modo||"ffa").slice(0,16); r2.arena = String(msg.arena||"vulcao").slice(0,16);
     for(var pid in r2.players) r2.hp[pid] = 100;
     pubsub.publish("room:"+r2.code, JSON.stringify({t:"start", modo:r2.modo, arena:r2.arena}));
@@ -181,7 +212,7 @@ self.onmessage = function(e){
     <div class="row" style="margin-top:8px"><label>Seu nome <input id="entryName" maxlength="16" style="width:170px"></label></div>
   </div>
   <div class="menugrid">
-    <button class="big" id="entryOnlineBtn">🌐 ONLINE<br><small>com amigos por código</small></button>
+    <button class="big" id="entryOnlineBtn">🌐 JOGAR ONLINE<br><small>com amigos</small></button>
     <button class="big" id="entryOfflineBtn">🤖 OFFLINE<br><small>contra bots</small></button>
   </div>
   <div class="menugrid">
@@ -193,6 +224,23 @@ self.onmessage = function(e){
     <button id="helpBtn" class="ghost">❓ AJUDA</button>
   </div>
   <p class="muted">PC: <span class="kbd">A</span><span class="kbd">D</span> mover • <span class="kbd">W</span>/Espaço pular (2x) • clique/<span class="kbd">J</span> atacar • <span class="kbd">K</span> poder. Arma só no lobby. Celular: joystick + botões.</p>
+</div>
+
+<!-- JOGAR ONLINE: criar ou entrar -->
+<div class="screen" id="screen-online">
+  <div class="card">
+    <h2 style="margin:4px">🌐 JOGAR ONLINE</h2>
+    <p class="muted">Jogue com seus amigos por código de 6 letras.</p>
+  </div>
+  <div class="menugrid">
+    <button class="big" id="createRoomBtn">🏠 Criar sala<br><small>gere um código e chame os amigos</small></button>
+    <button class="big" id="goJoinBtn">🚪 Entrar na sala<br><small>use o código do amigo</small></button>
+  </div>
+  <div class="card">
+    <div class="row"><input id="onlineJoinInput" maxlength="6" placeholder="CÓDIGO DO AMIGO" style="width:180px;text-transform:uppercase"><button id="joinRoomBtn" class="ghost">Entrar</button></div>
+    <p class="muted">Digite o código do amigo e aperte Entrar — ou toque em "Entrar na sala".</p>
+  </div>
+  <button data-back class="ghost">← Voltar</button>
 </div>
 
 <!-- MENU antigo vira só atalho -->
@@ -215,16 +263,17 @@ self.onmessage = function(e){
         <label class="muted">Nº bots <select id="botCount"><option value="1">1</option><option value="2">2</option><option value="3" selected>3</option><option value="5">5</option><option value="7">7</option></select></label>
         <label class="muted">Dificuldade <select id="diffSel"><option value="facil">Fácil</option><option value="normal" selected>Normal</option><option value="dificil">Difícil</option></select></label>
       </div>
-      <p class="muted">Bots só aparecem aqui no OFFLINE. No ONLINE você joga contra amigos.</p>
+      <p class="muted">OFFLINE: só você + bots.</p>
     </div>
     <div class="row" style="margin-top:8px">
       <label class="muted">Modo <select id="modeSel"><option value="ffa">Todos contra todos</option><option value="equipes">Equipes</option><option value="sobrevivencia">Sobrevivência</option><option value="rei">Rei da Arena</option></select></label>
-      <label class="muted">Arena <select id="arenaSel"><option value="vulcao">🌋 Vulcão</option><option value="gelo">❄️ Gelo</option><option value="floresta">🌲 Floresta</option><option value="cyber">🤖 Cyber</option><option value="deserto">🏜️ Deserto</option></select></label>
+      <label class="muted" id="arenaSelWrap">Arena <select id="arenaSel"><option value="vulcao">🌋 Vulcão</option><option value="gelo">❄️ Gelo</option><option value="floresta">🌲 Floresta</option><option value="cyber">🤖 Cyber</option><option value="deserto">🏜️ Deserto</option></select></label>
     </div>
+    <div class="card" id="voteCard" hidden style="box-shadow:none"><h3 style="margin:4px">🗺️ Votação de mapa (online)</h3><div class="row" id="voteRow"></div><p class="muted" id="voteCount"></p></div>
   </div>
   <div class="card"><h3 style="margin:4px">👥 <span id="lobbyCount"></span></h3><div id="lobbyList"></div>
-    <div class="row"><button id="addBotBtn" class="ghost">🤖 + Bot</button><button id="startBtn" class="big">⚔️ INICIAR</button></div>
-    <p class="muted">Online: anfitrião (👑) inicia. Classe travada na partida.</p>
+    <div class="row"><button id="addBotBtn" class="ghost">🤖 + Bot</button><button id="prontoBtn" class="ghost">✋ PRONTO</button><button id="startBtn" class="big">⚔️ INICIAR</button></div>
+    <p class="muted">Online: edite seu boneco/arma, vote no mapa, aperte PRONTO. Anfitrião (👑) inicia quando todos estiverem prontos. Pode completar com bots.</p>
   </div>
   <div class="card"><h3 style="margin:4px">Escolha sua classe</h3><div class="row" id="classCards"></div><h3 style="margin:8px 4px">Arma inicial (visual único)</h3><div class="row" id="weaponRow"></div></div>
   <button data-back class="ghost">← Launcher</button>
