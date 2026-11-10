@@ -310,4 +310,4 @@ self.onmessage = function(e){
 <script src="src/engine.js"></script>
 <script src="src/ui.js"></script>
 <script src="src/game.js"></script>
-<script>if("serviceWorker" in navigator){window.addEventListener("load",()=>{navigator.serviceWorker.register("./src/sw.js").catch(()=>{});});}</script>
+<script>if("serviceWorker" in navigator){window.addEventListener("load",()=>{navigator.serviceWorker.register("./sw.js").catch(()=>{try{navigator.serviceWorker.register("./src/sw.js").catch(()=>{});}catch(e){}});});}</script>
