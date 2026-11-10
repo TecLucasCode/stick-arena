@@ -48,6 +48,8 @@ select,input{background:#0f0a24;color:var(--txt);border:1px solid var(--line);bo
 #killfeed{position:absolute;top:52px;right:6px;display:flex;flex-direction:column;gap:4px;align-items:flex-end;pointer-events:none;z-index:3;max-width:44%}
 .kf{background:rgba(0,0,0,.5);border:1px solid rgba(59,42,109,.7);padding:3px 8px;border-radius:7px;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 #touch{position:absolute;left:0;right:0;bottom:calc(4px + var(--sab));display:flex;justify-content:space-between;align-items:flex-end;padding:0 8px;pointer-events:none;z-index:4}
+#rotateTip{position:fixed;inset:0;z-index:200;display:none;align-items:center;justify-content:center;background:#0a0618;color:var(--txt);font-size:20px;font-weight:800;text-align:center;padding:24px}
+@media(max-width:640px) and (orientation:portrait){#rotateTip{display:flex}}
 #dpad{display:flex;flex-direction:column;align-items:center;gap:6px;pointer-events:auto;touch-action:none}
 .tbtns{display:flex;gap:6px;pointer-events:auto;align-items:flex-end}
 #dpad .drow{display:flex;gap:6px}
@@ -235,7 +237,7 @@ self.onmessage = function(e){
     <div id="hud">
       <div class="hudbox">🌋 <b id="hudArena">VULCÃO</b><br><span id="hudModo">FFA</span> • <b id="hudTime">1:30</b><br><span id="hudScore" class="muted"></span></div>
       <div class="hudbox">❤️ <span id="hudHpTxt">100/100</span><div id="hudHpBar"><i id="hudHp"></i></div><span id="hudKda">0K • 0A</span></div>
-      <div class="hudbox">🔫 <b id="hudWpn">—</b><br>✨ <span id="hudPow">—</span></div>
+      <div class="hudbox">🔫 <b id="hudWpn">—</b><br>✨ <span id="hudPow">—</span><br><button id="menuBtn" class="ghost" style="pointer-events:auto;padding:4px 10px;font-size:12px;margin-top:4px">☰ Menu</button></div>
     </div>
     <div id="killfeed"></div>
     <div id="touch">
@@ -250,6 +252,7 @@ self.onmessage = function(e){
         <button class="tbtn" id="jumpBtn">▲</button>
       </div>
     </div>
+    <div id="rotateTip">🔄 VIRE O CELULAR<br><small>deite para jogar em tela cheia</small></div>
   </div>
   <p class="muted">Celular: ◀ ▶ mover • ▲ pular • ▼ agachar • J atacar • K poder. Arma só troca no lobby.</p>
 </div>
