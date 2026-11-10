@@ -8,4 +8,4 @@ services:
       - key: NODE_VERSION
         value: 20
       - key: CLIENT_URL
-        value: https://SEU-USUARIO.github.io/stick-arena
+        value: https://teclucascode.github.io/stick-arena
