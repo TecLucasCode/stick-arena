@@ -16,7 +16,12 @@
     bindEntry(); bindMenu(); bindLobby(); bindCustomize(); bindConfig(); bindControls(); bindEnd();
     refreshProfile(); renderRanking(); renderStats(); renderShop();
     setClasseUI(LOBBY.classe, true);
-    window.SA_UI.show("screen-entry");
+    // abre direto no jogo (tela deitada); launcher vira menu no ☰
+    LOBBY.playMode = "offline";
+    ensureBots(1 + (LOBBY.nBots || 3));
+    window.SA_UI.show("screen-game");
+    try { if (screen.orientation && screen.orientation.lock) { const p = screen.orientation.lock("landscape"); if (p && p.catch) p.catch(() => {}); } } catch (e) {}
+    startMatch();
     initNet();
     fitCanvas();
     window.addEventListener("resize", fitCanvas);
@@ -73,6 +78,7 @@
   function bindMenu() {
     on("playBtn", () => window.SA_UI.show("screen-entry"));
     on("playBtn2", () => window.SA_UI.show("screen-entry"));
+    on("menuBtn", () => { try { cancelAnimationFrame(RAF); RAF = 0; } catch (e) {} window.SA_UI.show("screen-entry"); refreshProfile(); });
     on("customBtn", () => { window.SA_UI.show("screen-custom"); renderShop(); });
     on("rankBtn", () => { window.SA_UI.show("screen-rank"); renderRanking(); });
     on("statsBtn", () => { window.SA_UI.show("screen-stats"); renderStats(); });
@@ -479,6 +485,14 @@
     const ck = $("cfgKill"); if (ck) ck.checked = PROF.cfg.showKill !== false;
   }
   function bindControls() {
+    const tryLandscape = () => {
+      try {
+        const el = document.documentElement;
+        if (el.requestFullscreen && !document.fullscreenElement) { const p = el.requestFullscreen(); if (p && p.catch) p.catch(() => {}); }
+        if (screen.orientation && screen.orientation.lock) { const p = screen.orientation.lock("landscape"); if (p && p.catch) p.catch(() => {}); }
+      } catch (e) {}
+    };
+    window.addEventListener("pointerdown", tryLandscape, { once: true });
     window.addEventListener("keydown", (e) => {
       const k = e.key.toLowerCase();
       keys[k] = true;
