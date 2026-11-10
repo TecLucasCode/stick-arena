@@ -7,6 +7,7 @@
   let LOBBY = { code: null, players: [], isHost: true, classe: "guerreiro", armaIdx: 0, modo: "ffa", arena: "vulcao", playMode: "offline", nBots: 3, diff: "normal" };
   let REMOTE = {}; // id -> {x,y,...tx,ty,ts}
   let JOY = { active: false, id: null, cx: 0, cy: 0, dx: 0, dy: 0, down: false, jumpSent: false };
+  let DPAD = { left: false, right: false, down: false };
 
   function boot() {
     PROF = window.SA_PROFILE.load();
@@ -245,14 +246,19 @@
       PROF.name = ($("cfgName").value || PROF.name).slice(0, 16);
       PROF.cfg.som = $("cfgSom").checked;
       PROF.cfg.qualidade = $("cfgQual").value;
+      if ($("cfgCtrl")) PROF.cfg.controle = $("cfgCtrl").value;
+      if ($("cfgBtnSize")) PROF.cfg.btnSize = $("cfgBtnSize").value;
+      if ($("cfgScore")) PROF.cfg.showScore = $("cfgScore").checked;
+      if ($("cfgKill")) PROF.cfg.showKill = $("cfgKill").checked;
       try { if ($("cfgServer")) { localStorage.setItem("stickArenaServer", $("cfgServer").value.trim()); } } catch (e) {}
-      window.SA_PROFILE.save(PROF); refreshProfile();
+      window.SA_PROFILE.save(PROF); refreshProfile(); applyTouchConfig();
       const p = LOBBY.players.find(p => p.isMe); if (p) p.name = PROF.name;
-      toast("Configurações salvas! Recarregue para trocar de servidor.");
+      toast("Config salva! Controle e HUD aplicados.");
     });
     $("cfgSom").checked = PROF.cfg.som !== false;
     $("cfgQual").value = PROF.cfg.qualidade || "alta";
     try { if ($("cfgServer")) $("cfgServer").value = localStorage.getItem("stickArenaServer") || ""; } catch (e) {}
+    applyTouchConfig();
   }
 
   // ---------- net ----------
@@ -443,9 +449,34 @@
   function pollKeys() {
     const l = keys["a"] || keys["arrowleft"], r = keys["d"] || keys["arrowright"];
     const jx = (r ? 1 : 0) - (l ? 1 : 0);
-    if (!JOY.active) INPUT.x = jx;
-    INPUT.down = !!(keys["s"] || keys["arrowdown"]) || JOY.down;
+    const joyMode = PROF && PROF.cfg && PROF.cfg.controle === "joystick";
+    if (joyMode && JOY.active) {
+      // joystick analógico tem prioridade
+    } else {
+      const dpadX = (DPAD.right ? 1 : 0) - (DPAD.left ? 1 : 0);
+      INPUT.x = dpadX !== 0 ? dpadX : jx;
+    }
+    INPUT.down = !!(keys["s"] || keys["arrowdown"]) || DPAD.down || JOY.down;
     INPUT.atk = joyAtkHeld || keyAtkHeld || INPUT.atk;
+  }
+  function applyTouchConfig() {
+    if (!PROF || !PROF.cfg) return;
+    const joyMode = PROF.cfg.controle === "joystick";
+    const dpad = $("dpad"), joy = $("joyBase");
+    if (dpad) dpad.hidden = joyMode;
+    if (joy) joy.hidden = !joyMode;
+    const mult = PROF.cfg.btnSize === "p" ? 0.85 : PROF.cfg.btnSize === "g" ? 1.2 : 1;
+    document.querySelectorAll("#touch .tbtn").forEach(b => {
+      const base = b.id === "atkBtn" ? 60 : b.id === "jumpBtn" ? 56 : 48;
+      b.style.width = b.style.height = Math.round(base * mult) + "px";
+    });
+    if (joy) { joy.style.width = joy.style.height = Math.round(92 * mult) + "px"; }
+    const sc = $("hudScore"); if (sc) sc.style.display = PROF.cfg.showScore === false ? "none" : "";
+    const kf = $("killfeed"); if (kf) kf.style.display = PROF.cfg.showKill === false ? "none" : "";
+    const c = $("cfgCtrl"); if (c) c.value = PROF.cfg.controle || "setas";
+    const s = $("cfgBtnSize"); if (s) s.value = PROF.cfg.btnSize || "medio";
+    const cs = $("cfgScore"); if (cs) cs.checked = PROF.cfg.showScore !== false;
+    const ck = $("cfgKill"); if (ck) ck.checked = PROF.cfg.showKill !== false;
   }
   function bindControls() {
     window.addEventListener("keydown", (e) => {
@@ -455,7 +486,6 @@
       if (k === "w" || k === "arrowup" || k === " ") { if (!INPUT.jump) { INPUT.jump = true; INPUT.jumpPressed = true; } }
       if (k === "j") keyAtkHeld = true;
       if (k === "k" || k === "q") INPUT.powerEdge = true;
-      if (k === "e") INPUT.armaTroca = true;
     });
     window.addEventListener("keyup", (e) => {
       const k = e.key.toLowerCase(); keys[k] = false;
@@ -469,29 +499,31 @@
     bindHold("atkBtn", (v) => joyAtkHeld = v);
     on("powBtn", () => { INPUT.powerEdge = true; });
     on("jumpBtn", () => { INPUT.jump = true; INPUT.jumpPressed = true; setTimeout(() => INPUT.jump = false, 130); });
-    on("wpnBtn", () => {
-      INPUT.armaTroca = true;
-      try { toast("Arma: " + GAME.me().weapon().nome); } catch (e) {}
-    });
+    // D-pad estilo Hellbound: setas discretas
+    bindHold("leftBtn", (v) => DPAD.left = v);
+    bindHold("rightBtn", (v) => DPAD.right = v);
+    bindHold("downBtn", (v) => DPAD.down = v);
+    bindHold("upBtn", (v) => { if (v) { INPUT.jump = true; INPUT.jumpPressed = true; setTimeout(() => INPUT.jump = false, 130); } });
+    // Joystick analógico (quando cfg.controle === joystick)
     const base = $("joyBase"), stick = $("joyStick");
-    if (!base || !stick) return;
-    const setStick = (dx, dy) => {
-      const m = 44;
-      const len = Math.hypot(dx, dy);
-      const cl = len > m ? m / len : 1;
-      stick.style.transform = "translate(" + dx * cl + "px," + dy * cl + "px)";
-      JOY.dx = dx * cl; JOY.dy = dy * cl;
-      INPUT.x = Math.abs(JOY.dx) > 10 ? Math.sign(JOY.dx) * Math.min(1, Math.abs(JOY.dx) / 40) : 0;
-      JOY.down = JOY.dy > 22;
-      if (JOY.dy < -24 && !JOY.jumpSent) { JOY.jumpSent = true; INPUT.jump = true; INPUT.jumpPressed = true; setTimeout(() => INPUT.jump = false, 130); }
-      if (JOY.dy > -10) JOY.jumpSent = false;
-      JOY.active = true;
-    };
-    const resetStick = () => { stick.style.transform = "translate(0,0)"; JOY.dx = JOY.dy = 0; INPUT.x = 0; JOY.down = false; JOY.active = false; JOY.jumpSent = false; };
-    base.addEventListener("pointerdown", (e) => { JOY.id = e.pointerId; const r = base.getBoundingClientRect(); JOY.cx = r.left + r.width / 2; JOY.cy = r.top + r.height / 2; try { base.setPointerCapture(e.pointerId); } catch (err) {} setStick(e.clientX - JOY.cx, e.clientY - JOY.cy); });
-    base.addEventListener("pointermove", (e) => { if (e.pointerId === JOY.id) setStick(e.clientX - JOY.cx, e.clientY - JOY.cy); });
-    const up = (e) => { if (e.pointerId === JOY.id) { JOY.id = null; resetStick(); } };
-    base.addEventListener("pointerup", up); base.addEventListener("pointercancel", up);
+    if (base && stick) {
+      const setStick = (dx, dy) => {
+        const m = 44, len = Math.hypot(dx, dy), cl = len > m ? m / len : 1;
+        stick.style.transform = "translate(" + dx * cl + "px," + dy * cl + "px)";
+        JOY.dx = dx * cl; JOY.dy = dy * cl;
+        INPUT.x = Math.abs(JOY.dx) > 10 ? Math.sign(JOY.dx) * Math.min(1, Math.abs(JOY.dx) / 40) : 0;
+        JOY.down = JOY.dy > 22;
+        if (JOY.dy < -24 && !JOY.jumpSent) { JOY.jumpSent = true; INPUT.jump = true; INPUT.jumpPressed = true; setTimeout(() => INPUT.jump = false, 130); }
+        if (JOY.dy > -10) JOY.jumpSent = false;
+        JOY.active = true;
+      };
+      const resetStick = () => { stick.style.transform = "translate(0,0)"; JOY.dx = JOY.dy = 0; INPUT.x = 0; JOY.down = false; JOY.active = false; JOY.jumpSent = false; };
+      base.addEventListener("pointerdown", (e) => { JOY.id = e.pointerId; const r = base.getBoundingClientRect(); JOY.cx = r.left + r.width / 2; JOY.cy = r.top + r.height / 2; try { base.setPointerCapture(e.pointerId); } catch (err) {} setStick(e.clientX - JOY.cx, e.clientY - JOY.cy); });
+      base.addEventListener("pointermove", (e) => { if (e.pointerId === JOY.id) setStick(e.clientX - JOY.cx, e.clientY - JOY.cy); });
+      const up = (e) => { if (e.pointerId === JOY.id) { JOY.id = null; resetStick(); } };
+      base.addEventListener("pointerup", up); base.addEventListener("pointercancel", up);
+    }
+    applyTouchConfig();
   }
   function bindHold(id, fn) {
     const e = $(id); if (!e) return;
