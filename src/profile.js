@@ -16,7 +16,7 @@
       owned: ["padrao"], equip: { rastro: null, acessorio: null, pele: null },
       hist: [], // {modo, arena, pos, kills, xp, coins, quando}
       classe: "guerreiro", armaIdx: 0,
-      cfg: { som: true, qualidade: "alta", sens: 1.0, controle: "setas", btnSize: "medio", showScore: true, showKill: true },
+      cfg: { som: true, qualidade: "alta", sens: 1.0, controle: "joystick", btnSize: "medio", showScore: true, showKill: true },
     };
   }
   function load() {

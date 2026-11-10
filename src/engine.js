@@ -19,7 +19,7 @@
       this.anim = "idle"; this.animT = 0; this.hurtT = 0; this.invT = 0; this.stun = 0; this.slow = 0; this.burn = 0; this.burnT = 0;
       this.dead = false; this.deadT = 0; this.kills = 0; this.assists = 0; this.dano = 0; this.tempoVivo = 0; this.pontosRei = 0;
       this.lastHitBy = null; this.hitByMap = {}; this.crouchH = 34;
-      this.turretCd = 0; this.coyote = 0; this.jbuf = 0;
+      this.turretCd = 0;
       this.applyClass();
     }
     applyClass() {
@@ -42,9 +42,12 @@
       this.qualidade = opts.qualidade || "alta";
       this.arena = CFG().ARENAS[this.arenaId];
       this.fragilEstado = {};
-      this.shake = 0; this._sky = {}; this.diff = opts.diff || "normal";
       this.zona = { x: 380, y: 300, w: 200, h: 200 };
       this._fimChamado = false;
+      // eventos de arena (bombas, raios, cura) — salas com eventos
+      this.eventos = opts.eventos !== false;
+      this.evTimer = 12 * 60;
+      this.strikes = []; this.orbs = [];
       this.spawnPts = [90, 260, 470, 680, 830];
     }
     addFighter(o) { const f = new Fighter(o); this.fighters.push(f); return f; }
@@ -69,13 +72,12 @@
       }
       return out;
     }
-    update(input, diffName) {
+    update(input) {
       if (this.over) return;
       this.time++;
       if (this.time % 60 === 0 && this.restante > 0) this.restante--;
       if (this.restante <= 0) return this.finish("tempo");
       const plats = this.plataformas(this.time);
-      const diff = (CFG().DIFFS && CFG().DIFFS[diffName || this.diff]) || { reacao: 0.7, erro: 45, poder: 0.004 };
       // modo rei: pontos por segurar centro
       if (this.modo === "rei") {
         for (const f of this.fighters) {
@@ -98,13 +100,13 @@
       for (const f of this.fighters) {
         if (f.dead) { f.deadT++; if (this.modo !== "sobrevivencia" && f.vidas !== 1 && f.deadT > 120 && !this.over) { if (f.vidas !== Infinity) f.vidas--; this.spawn(f); } continue; }
         f.tempoVivo += 1 / 60;
-        // remoto online parado: interpola no game.js; aqui fica parado até chegar pos
-        let inp = (f.id === this.localId) ? input : (f.id !== "__none__" && f._tx !== undefined && !f.isBot ? { x: 0, jump: false, down: false, atk: false, power: false } : (f.isBot ? botInput(this, f, diff) : { x: 0, jump: false, down: false, atk: false, power: false }));
+        let inp = (f.id === this.localId) ? input : (f.isBot ? botInput(this, f) : { x: 0, jump: false, down: false, atk: false, power: false });
         this.stepFighter(f, inp, plats);
       }
       this.stepProjs(plats);
       this.stepMinas();
       this.stepTurrets();
+      this.stepEventos();
       this.stepParts();
       this.stepHazards();
       // remove mortos sem vida em surv
@@ -135,12 +137,10 @@
       if (this.arena.vento) f.vx += Math.sin(this.time / 130) * 0.02;
       // agachar
       f.agach = !!inp.down && f.noChao;
-      // pulo com coyote-time + buffer + duplo (mobile-friendly)
-      if (f.noChao) f.coyote = 7; else if (f.coyote > 0) f.coyote--;
-      if (inp.jumpPressed) f.jbuf = 8; else if (f.jbuf > 0) f.jbuf--;
-      if (f.jbuf > 0) {
-        if (f.noChao || f.coyote > 0) { f.vy = -f.jumpV; f.noChao = false; f.coyote = 0; f.jbuf = 0; f.pulos = 1; sfx("jump"); this.burst(f.x + 13, f.y + f.h, "#94a3b8", 4); }
-        else if (f.pulos < 2) { f.vy = -f.jumpV * 0.88; f.pulos++; f.jbuf = 0; sfx("jump"); this.burst(f.x + 13, f.y + 30, "#c4b5fd", 5); }
+      // pulo (borda): inp.jumpPressed tratado fora; aqui inp.jump contínuo + buffer simples
+      if (inp.jumpPressed) {
+        if (f.noChao) { f.vy = -f.jumpV; f.noChao = false; f.pulos = 1; sfx("jump"); this.burst(f.x + 13, f.y + f.h, "#94a3b8", 4); }
+        else if (f.pulos < 2) { f.vy = -f.jumpV * 0.88; f.pulos++; sfx("jump"); this.burst(f.x + 13, f.y + 30, "#c4b5fd", 5); }
       }
       if (!inp.jump && f.vy < -4) f.vy = -4; // pulo variável
       // gravidade
@@ -151,22 +151,26 @@
       if (f.x < 8) { f.x = 8; f.vx = 0; }
       if (f.x > W - 8 - f.w) { f.x = W - 8 - f.w; f.vx = 0; }
       f.y += f.vy;
-      f.noChao = false;
+      f.noChao = false; f.emPlat = false;
+      if (f.dropT > 0) f.dropT--;
       const r = f.rect();
       for (const p of plats) {
         if (r.x + r.w > p.x && r.x < p.x + p.w) {
           const prevBottom = (r.y + r.h) - f.vy;
-          if (f.vy >= 0 && prevBottom <= p.y + 8 && r.y + r.h >= p.y && r.y + r.h <= p.y + p.h + 12) {
-            f.y = p.y - f.h; f.vy = 0; f.noChao = true; f.pulos = 0;
+          if (f.vy >= 0 && !(f.dropT > 0 && !p.chao) && prevBottom <= p.y + 8 && r.y + r.h >= p.y && r.y + r.h <= p.y + p.h + 12) {
+            f.y = p.y - f.h; f.vy = 0; f.noChao = true; f.pulos = 0; f.emPlat = !p.chao;
             if (p.fragil) {
               this.fragil[p.key] = (this.fragil[p.key] || 0) + 1;
               if (this.fragil[p.key] > 70) this.fragilEstado[p.key] = "caida";
             }
-          } else if (f.vy < 0 && r.y <= p.y + p.h && r.y >= p.y + p.h - 14 && !p.chao) {
+          } else if (f.vy < 0 && p.chao && r.y <= p.y + p.h && r.y >= p.y + p.h - 14) {
+            // só o chão sólido bloqueia subindo; plataformas se atravessam (mão única)
             f.y = p.y + p.h; f.vy = 0.5;
           }
         }
       }
+      // segurar ▼ em cima de plataforma: desce através dela
+      if (inp.down && f.noChao && f.emPlat) { f.y += 8; f.noChao = false; f.emPlat = false; f.pulos = 1; f.dropT = 14; }
       if (f.y > H + 80) { // caiu do mundo (não deve acontecer, mas lava/areia tratam)
         this.damage(f, 30, null, true);
         f.x = 480; f.y = 150; f.vy = 0;
@@ -241,7 +245,6 @@
       const tw = target.weapon();
       if (tw && tw.block && Math.sign((from.x - target.x)) !== target.dir && Math.random() < 0.5) { dmg *= 0.35; this.floatText(target.x + 13, target.y - 10, "BLOQUEIO", "#7dd3fc"); }
       this.damage(target, dmg, from, true);
-      this.shake = Math.min(9, this.shake + (wpn.kb || 6) * 0.35);
       target.vx += Math.sign(target.x - from.x || (Math.random() - 0.5)) * (wpn.kb || 6) * (0.9 / target.peso + 0.4);
       target.vy = Math.min(target.vy, -(wpn.kb || 6) * 0.45);
       target.hurtT = 22; target.invT = Math.max(target.invT, 28);
@@ -291,11 +294,18 @@
         let morto = p.life <= 0 || p.x < -20 || p.x > W + 20 || p.y < -40 || p.y > H + 20;
         // colisão cenário
         if (!morto) for (const pl of plats) { if (p.x > pl.x && p.x < pl.x + pl.w && p.y > pl.y && p.y < pl.y + pl.h + 4) { morto = true; break; } }
+        // bomba: espoleta por proximidade
+        if (p.bomb && !morto) {
+          for (const f of this.fighters) {
+            if (f.dead) continue;
+            if (Math.hypot((f.x + 13) - p.x, (f.y + 27) - p.y) < 36) { morto = true; break; }
+          }
+        }
         // colisão lutadores
         if (!morto) {
           for (const f of this.fighters) {
             if (f.dead || f.invT > 0) continue;
-            if (p.dono === f.id) continue;
+            if (p.dono && p.dono === f.id) continue;
             if (this.modo === "equipes" && p.team === f.team) continue;
             const r = f.rect();
             if (p.x > r.x - 4 && p.x < r.x + r.w + 4 && p.y > r.y && p.y < r.y + r.h) {
@@ -393,6 +403,69 @@
         }
       }
     }
+    // ---------- EVENTOS DE ARENA ----------
+    evento(tipo) {
+      if (!tipo) {
+        const pool = ["bombas", "raios", "cura", "bombas", "raios"];
+        tipo = pool[Math.floor(Math.random() * pool.length)];
+      }
+      if (tipo === "bombas") {
+        for (let i = 0; i < 5; i++) {
+          this.projs.push({ x: 60 + Math.random() * 840, y: -20 - i * 40, vx: (Math.random() - 0.5) * 1.5, vy: 2 + Math.random() * 2, dono: null, team: -1, dmg: 26, kb: 12, cor: "#f43f5e", r: 8, life: 600, aoe: 85, bomb: true, grav: 0.3 });
+        }
+        this.anuncia("💣 CHUVA DE BOMBAS!");
+      } else if (tipo === "raios") {
+        const alvos = this.fighters.filter(f => !f.dead);
+        for (let i = 0; i < Math.min(4, Math.max(2, alvos.length)); i++) {
+          const f = alvos[Math.floor(Math.random() * alvos.length)];
+          this.strikes.push({ x: f.x + 13 + (Math.random() - 0.5) * 40, y: 80, t: 70 });
+        }
+        this.anuncia("⚡ TEMPESTADE DE RAIOS!");
+      } else if (tipo === "cura") {
+        for (let i = 0; i < 2; i++) {
+          const p = (this.arena.plats || [])[Math.floor(Math.random() * (this.arena.plats || [0]).length)] || { x: 400, y: 300 };
+          this.orbs.push({ x: p.x + p.w / 2, y: p.y - 16, t: 20 * 60 });
+        }
+        this.anuncia("💚 ORBES DE CURA!");
+      }
+      sfx("power");
+    }
+    anuncia(txt) {
+      this.floatText(480, 90, txt, "#fde047");
+      try { window.SA_UI.toast(txt); } catch (e) {}
+    }
+    stepEventos() {
+      if (!this.eventos || this.over) return;
+      if (--this.evTimer <= 0) { this.evento(); this.evTimer = (16 + Math.random() * 8) * 60; }
+      // raios: telegrafar e cair
+      for (let i = this.strikes.length - 1; i >= 0; i--) {
+        const s = this.strikes[i]; s.t--;
+        if (s.t === 30) sfx("tele");
+        if (s.t <= 0) {
+          this.burst(s.x, 460, "#facc15", 14); this.ring(s.x, 460, "#facc15"); sfx("boom");
+          for (const f of this.fighters) {
+            if (f.dead || f.invT > 0) continue;
+            if (Math.abs((f.x + 13) - s.x) < 46 && f.y > 200) {
+              this.damage(f, 20, null, false); f.vy = -8; f.invT = 50;
+            }
+          }
+          this.strikes.splice(i, 1);
+        }
+      }
+      // orbes de cura
+      for (let i = this.orbs.length - 1; i >= 0; i--) {
+        const o = this.orbs[i];
+        if (--o.t <= 0) { this.orbs.splice(i, 1); continue; }
+        for (const f of this.fighters) {
+          if (f.dead || f.hp >= f.maxhp) continue;
+          if (Math.abs((f.x + 13) - o.x) < 26 && Math.abs((f.y + 27) - o.y) < 40) {
+            f.hp = Math.min(f.maxhp, f.hp + 30);
+            this.floatText(f.x + 13, f.y - 12, "+30", "#4ade80"); this.burst(o.x, o.y, "#4ade80", 10); sfx("power");
+            this.orbs.splice(i, 1); break;
+          }
+        }
+      }
+    }
     stepParts() {
       const max = this.qualidade === "baixa" ? 120 : 350;
       for (let i = this.parts.length - 1; i >= 0; i--) {
@@ -429,12 +502,10 @@
     render() {
       const c = this.ctx;
       const A = this.arena;
-      // céu (gradiente cacheado por arena) + screen-shake
-      c.save();
-      if (this.shake > 0.2) { c.translate((Math.random()-0.5)*this.shake, (Math.random()-0.5)*this.shake); this.shake *= 0.88; } else this.shake = 0;
-      let g = this._sky[this.arenaId];
-      if (!g) { g = c.createLinearGradient(0, 0, 0, H); g.addColorStop(0, A.ceu[0]); g.addColorStop(0.6, A.ceu[1]); g.addColorStop(1, A.ceu[2]); this._sky[this.arenaId] = g; }
-      c.fillStyle = g; c.fillRect(-12, -12, W+24, H+24);
+      // céu
+      const g = c.createLinearGradient(0, 0, 0, H);
+      g.addColorStop(0, A.ceu[0]); g.addColorStop(0.6, A.ceu[1]); g.addColorStop(1, A.ceu[2]);
+      c.fillStyle = g; c.fillRect(0, 0, W, H);
       this.bgProps(c, A);
       // zona rei
       if (this.modo === "rei") {
@@ -478,6 +549,23 @@
         c.fillStyle = t.cor; c.fillRect(t.x - 8, t.y - 22, 16, 6);
         c.fillStyle = "#fff"; c.font = "10px system-ui"; c.textAlign = "center"; c.fillText(Math.ceil(t.t / 60) + "s", t.x, t.y + 12);
       }
+      // eventos: telegrafia de raios + orbes de cura
+      for (const s of this.strikes) {
+        const urg = s.t < 30;
+        c.save(); c.globalAlpha = urg ? (0.5 + 0.4 * Math.sin(this.time / 2)) : 0.45;
+        c.fillStyle = urg ? "#ef4444" : "#facc15";
+        c.beginPath(); c.ellipse(s.x, 470, 40, 10, 0, 0, 7); c.fill();
+        c.fillRect(s.x - 3, 60, 6, 400);
+        c.font = "bold 20px system-ui"; c.textAlign = "center"; c.fillText("⚡", s.x, 90);
+        c.restore();
+      }
+      for (const o of this.orbs) {
+        const b = Math.sin(this.time / 12) * 3;
+        c.save(); c.shadowColor = "#4ade80"; c.shadowBlur = 12;
+        c.fillStyle = "#22c55e"; c.beginPath(); c.arc(o.x, o.y + b, 10, 0, 7); c.fill();
+        c.shadowBlur = 0; c.fillStyle = "#fff"; c.fillRect(o.x - 2, o.y + b - 6, 4, 12); c.fillRect(o.x - 6, o.y + b - 2, 12, 4);
+        c.restore();
+      }
       // projéteis
       for (const p of this.projs) {
         c.save(); c.shadowColor = p.cor; c.shadowBlur = 10;
@@ -506,7 +594,6 @@
       c.fillStyle = "#fff"; c.font = "bold 16px system-ui";
       const mm = Math.floor(this.restante / 60), ss = String(this.restante % 60).padStart(2, "0");
       c.fillText(mm + ":" + ss, W / 2, 29);
-      c.restore();
     }
     drawFighter(c, f) {
       const r = f.rect();
@@ -616,34 +703,25 @@
     arma(c, f, hx, hy, ang) {
       const wpn = f.weapon();
       c.save(); c.translate(hx, hy); c.rotate(ang);
-      if (this.qualidade !== "baixa") { c.shadowColor = wpn.cor; c.shadowBlur = 8; }
-      c.strokeStyle = wpn.cor; c.fillStyle = wpn.cor; c.lineWidth = 3; c.lineCap = "round";
-      const id = wpn.id;
-      // GUERREIRO — 5 corpos distintos
-      if (id === "espada") { c.lineWidth = 6; c.beginPath(); c.moveTo(0,0); c.lineTo(20,0); c.stroke(); c.lineWidth = 3; c.fillStyle = "#fff"; c.beginPath(); c.moveTo(20,-5); c.lineTo(30,0); c.lineTo(20,5); c.closePath(); c.fill(); c.strokeStyle = "#7f1d1d"; c.beginPath(); c.moveTo(4,-6); c.lineTo(4,6); c.stroke(); }
-      else if (id === "martelo") { c.lineWidth = 4; c.beginPath(); c.moveTo(0,0); c.lineTo(18,0); c.stroke(); c.fillStyle = "#ff9a3c"; c.fillRect(16,-9,12,18); c.fillStyle = "#7c2d12"; c.fillRect(16,-9,12,4); }
-      else if (id === "machado_duplo") { c.lineWidth = 3; c.beginPath(); c.moveTo(0,0); c.lineTo(18,0); c.stroke(); c.fillStyle = wpn.cor; c.beginPath(); c.arc(18,-5,6,Math.PI*0.5,Math.PI*1.6); c.fill(); c.beginPath(); c.arc(18,5,6,-Math.PI*0.6,Math.PI*0.5); c.fill(); }
-      else if (id === "machado_pesado") { c.lineWidth = 5; c.beginPath(); c.moveTo(0,0); c.lineTo(16,0); c.stroke(); c.fillStyle = "#c81e1e"; c.beginPath(); c.moveTo(16,-11); c.lineTo(30,-7); c.lineTo(30,7); c.lineTo(16,11); c.closePath(); c.fill(); }
-      else if (id === "escudo") { c.fillStyle = "#1e3a5f"; roundRect(c, 0, -13, 9, 26, 4); c.fill(); c.lineWidth = 2; c.strokeStyle = wpn.cor; c.strokeRect(-1,-13,10,26); c.fillStyle = wpn.cor; c.beginPath(); c.arc(4,0,2.5,0,7); c.fill(); }
-      // MAGO — 5 cajados distintos
-      else if (id === "fogo") { c.lineWidth = 3; c.strokeStyle = "#78350f"; c.beginPath(); c.moveTo(-4,8); c.lineTo(10,-4); c.stroke(); c.fillStyle = wpn.cor; c.beginPath(); c.arc(13,-7,6,0,7); c.fill(); c.fillStyle = "#fef08a"; c.beginPath(); c.arc(13,-7,2.5+Math.sin(this.time/6)*0.8,0,7); c.fill(); }
-      else if (id === "gelo") { c.lineWidth = 3; c.strokeStyle = "#0c4a6e"; c.beginPath(); c.moveTo(-4,8); c.lineTo(10,-4); c.stroke(); c.strokeStyle = wpn.cor; c.lineWidth = 2; c.beginPath(); c.moveTo(13,-13); c.lineTo(13,-1); c.moveTo(7,-7); c.lineTo(19,-7); c.stroke(); c.fillStyle = "#fff"; c.beginPath(); c.arc(13,-7,2,0,7); c.fill(); }
-      else if (id === "raio") { c.strokeStyle = "#713f12"; c.lineWidth = 3; c.beginPath(); c.moveTo(-4,8); c.lineTo(10,-4); c.stroke(); c.fillStyle = wpn.cor; c.beginPath(); c.moveTo(16,-13); c.lineTo(10,-5); c.lineTo(14,-5); c.lineTo(8,0); c.lineTo(18,-9); c.closePath(); c.fill(); }
-      else if (id === "orbe") { c.strokeStyle = "#581c87"; c.lineWidth = 3; c.beginPath(); c.moveTo(-4,8); c.lineTo(8,-2); c.stroke(); c.strokeStyle = wpn.cor; c.beginPath(); c.arc(14,-6,7,0,7); c.stroke(); c.fillStyle = wpn.cor; c.globalAlpha = 0.5; c.beginPath(); c.arc(14,-6,4,0,7); c.fill(); c.globalAlpha = 1; }
-      else if (id === "grav") { c.strokeStyle = "#701a75"; c.lineWidth = 3; c.beginPath(); c.moveTo(-4,8); c.lineTo(10,-4); c.stroke(); c.strokeStyle = wpn.cor; for (let i=0;i<2;i++){ c.beginPath(); c.arc(13,-7,4+i*3,this.time/10,this.time/10+4.5); c.stroke(); } }
-      // ATIRADOR — 5 arcos distintos
-      else if (id === "arco") { c.strokeStyle = wpn.cor; c.lineWidth = 3; c.beginPath(); c.arc(8,0,10,-1.2,1.2); c.stroke(); c.strokeStyle = "#fff"; c.lineWidth = 1; c.beginPath(); c.moveTo(8+Math.cos(-1.2)*10,Math.sin(-1.2)*10); c.lineTo(8+Math.cos(1.2)*10,Math.sin(1.2)*10); c.stroke(); c.fillStyle = wpn.cor; c.fillRect(13,-1,8,2); }
-      else if (id === "besta") { c.fillStyle = "#365314"; roundRect(c, 0,-3,20,6,2); c.fill(); c.strokeStyle = wpn.cor; c.lineWidth = 2; c.beginPath(); c.moveTo(6,-8); c.lineTo(6,8); c.stroke(); c.fillStyle = "#fff"; c.fillRect(12,-1,7,2); }
-      else if (id === "arco_exp") { c.strokeStyle = wpn.cor; c.lineWidth = 3; c.beginPath(); c.arc(8,0,10,-1.2,1.2); c.stroke(); c.fillStyle = "#ef4444"; c.beginPath(); c.arc(17,0,4,0,7); c.fill(); c.fillStyle = "#fff"; c.fillRect(16,-1,2,2); }
-      else if (id === "bumer") { c.strokeStyle = wpn.cor; c.lineWidth = 5; c.beginPath(); c.arc(8,0,8,0.5,5.2); c.stroke(); c.fillStyle = "#fff"; c.beginPath(); c.arc(8+Math.cos(1)*8,Math.sin(1)*8,1.5,0,7); c.fill(); }
-      else if (id === "dardos") { c.fillStyle = "#065f46"; roundRect(c, 0,-7,18,14,3); c.fill(); c.fillStyle = wpn.cor; for(let i=-1;i<=1;i++) c.fillRect(14,i*4-1,7,2); }
-      // ENGENHEIRO — 5 engenhocas
-      else if (id === "canhao") { c.fillStyle = "#334155"; roundRect(c, 0,-5,20,10,3); c.fill(); c.fillStyle = wpn.cor; c.fillRect(16,-3,5,6); c.fillStyle = "#0f172a"; c.fillRect(0,-2,4,4); }
-      else if (id === "minas") { c.fillStyle = "#7f1d1d"; roundRect(c, 0,-6,16,12,2); c.fill(); c.fillStyle = (Math.floor(this.time/15)%2? "#fff":"#f43f5e"); c.beginPath(); c.arc(8,-8,2.5,0,7); c.fill(); c.strokeStyle = "#7f1d1d"; c.beginPath(); c.moveTo(8,-6); c.lineTo(8,-4); c.stroke(); }
-      else if (id === "martelo_el") { c.lineWidth = 4; c.strokeStyle = "#164e63"; c.beginPath(); c.moveTo(0,0); c.lineTo(16,0); c.stroke(); c.fillStyle = wpn.cor; c.fillRect(14,-8,10,16); c.strokeStyle = "#fff"; c.lineWidth = 1.5; c.beginPath(); c.moveTo(16,-5); c.lineTo(22,0); c.lineTo(16,5); c.stroke(); }
-      else if (id === "foguetes") { c.fillStyle = "#881337"; roundRect(c, 0,-6,22,12,5); c.fill(); c.fillStyle = wpn.cor; c.beginPath(); c.moveTo(22,-6); c.lineTo(28,0); c.lineTo(22,6); c.closePath(); c.fill(); c.fillStyle = "#fdba74"; c.beginPath(); c.arc(2,0,2.5,0,7); c.fill(); }
-      else if (id === "ima") { c.strokeStyle = wpn.cor; c.lineWidth = 5; c.beginPath(); c.arc(9,0,7,Math.PI*0.6,Math.PI*1.4); c.stroke(); c.strokeStyle = "#fff"; c.lineWidth = 5; c.beginPath(); c.arc(9,0,7,-Math.PI*0.4,Math.PI*0.4); c.stroke(); c.fillStyle = wpn.cor; c.fillRect(2,-9,5,4); c.fillRect(2,5,5,4); }
-      else { c.beginPath(); c.moveTo(0,0); c.lineTo(22,0); c.stroke(); }
+      c.shadowColor = wpn.cor; c.shadowBlur = 8;
+      c.strokeStyle = wpn.cor; c.fillStyle = wpn.cor; c.lineWidth = 3;
+      const L = 22;
+      if (f.classe === "guerreiro") {
+        if (wpn.id === "escudo") { c.fillStyle = "#1e3a5f"; roundRect(c, 0, -12, 8, 24, 4); c.fill(); c.strokeStyle = wpn.cor; c.strokeRect(-1, -13, 10, 26); }
+        else { c.beginPath(); c.moveTo(0, 0); c.lineTo(L, 0); c.stroke(); c.beginPath(); c.moveTo(L - 7, -5); c.lineTo(L + 2, 0); c.lineTo(L - 7, 5); c.closePath(); c.fill(); }
+        if (wpn.id === "martelo" || wpn.id === "machado_pesado") { c.fillRect(L - 4, -8, 8, 16); }
+      } else if (f.classe === "mago") {
+        c.beginPath(); c.moveTo(-4, 6); c.lineTo(10, -6); c.stroke();
+        c.save(); c.shadowBlur = 14; c.beginPath(); c.arc(13, -8, 5, 0, 7); c.fill(); c.restore();
+        c.fillStyle = "#fff"; c.beginPath(); c.arc(13, -8, 2, 0, 7); c.fill();
+      } else if (f.classe === "atirador") {
+        if (wpn.id === "bumer") { c.beginPath(); c.arc(8, 0, 8, 0.4, 5.4); c.stroke(); }
+        else { c.beginPath(); c.moveTo(0, 0); c.lineTo(20, -4); c.stroke(); c.beginPath(); c.moveTo(4, 6); c.lineTo(4, -6); c.stroke(); }
+      } else {
+        if (wpn.id === "minas") { c.beginPath(); c.arc(8, 0, 6, 0, 7); c.stroke(); c.fillRect(6, -2, 4, 4); }
+        else if (wpn.id === "ima") { c.beginPath(); c.arc(8, 0, 7, -1.2, 1.2); c.stroke(); c.beginPath(); c.arc(8, 0, 7, Math.PI - 1.2, Math.PI + 1.2); c.stroke(); }
+        else { c.fillStyle = "#334155"; roundRect(c, 0, -4, 20, 8, 3); c.fill(); c.fillStyle = wpn.cor; c.fillRect(14, -2, 8, 4); }
+      }
       c.restore();
     }
     bgProps(c, A) {
@@ -714,8 +792,7 @@
     if (sp > 0.5) return "walk";
     return "idle";
   }
-  function botInput(g, f, diff) {
-    diff = diff || { reacao: 0.7, erro: 45, poder: 0.004 };
+  function botInput(g, f) {
     if (!f.bot) f.bot = { t: 0, dir: 1, jumpCd: 0 };
     const b = f.bot; b.t++;
     // alvo mais próximo
@@ -735,13 +812,12 @@
       const dx = best.x - f.x, dy = best.y - f.y;
       const wpn = f.weapon();
       const range = wpn.tipo === "melee" ? wpn.alcance * 0.85 : 300;
-      const err = (Math.random() - 0.5) * diff.erro;
-      if (Math.abs(dx + err) > range * 0.7) x = Math.sign(dx + err) * diff.reacao;
-      else { x = Math.sign(dx) * 0.5; if (Math.abs(dx) < wpn.alcance && Math.abs(dy) < 80 && Math.random() < diff.reacao) atk = true; else if (wpn.tipo !== "melee" && Math.abs(dy) < 60 && Math.random() < diff.reacao) atk = true; }
-      if (dy < -60 && f.noChao && b.jumpCd <= 0 && Math.random() < diff.reacao) { jumpPressed = true; b.jumpCd = 40; }
+      if (Math.abs(dx) > range * 0.7) x = Math.sign(dx);
+      else { x = Math.sign(dx) * 0.5; if (Math.abs(dx) < wpn.alcance && Math.abs(dy) < 80) atk = true; else if (wpn.tipo !== "melee" && Math.abs(dy) < 60) atk = true; }
+      if (dy < -60 && f.noChao && b.jumpCd <= 0) { jumpPressed = true; b.jumpCd = 40; }
       if ((f.x < 30 && x < 0) || (f.x > 900 && x > 0)) { jumpPressed = true; }
-      if (Math.random() < diff.poder) power = true;
-      if (Math.random() < 0.01 * diff.reacao) atk = true;
+      if (Math.random() < 0.004) power = true;
+      if (Math.random() < 0.01) atk = true;
     } else { if (b.t % 120 === 0) b.dir *= -1; x = b.dir * 0.5; }
     if (b.jumpCd > 0) b.jumpCd--;
     // evita lava
