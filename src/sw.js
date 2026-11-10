@@ -1,5 +1,5 @@
 /* STICK ARENA por Lucas — service worker (deixa instalável + abre offline) */
-const CACHE = "stick-arena-v4";
+const CACHE = "stick-arena-v5";
 const FILES = ["./", "./index.html", "./src/manifest.webmanifest", "./src/icon-192.png", "./src/icon-512.png", "./src/icon-mask.png", "./src/config.js", "./src/profile.js", "./src/net.js", "./src/engine.js", "./src/ui.js", "./src/game.js", "./client/config-server.js"];
 self.addEventListener("install", (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES)).then(() => self.skipWaiting())); });
 self.addEventListener("activate", (e) => { e.waitUntil(self.clients.claim()); });

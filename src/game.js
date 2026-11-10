@@ -17,15 +17,19 @@
     bindEntry(); bindMenu(); bindLobby(); bindCustomize(); bindConfig(); bindControls(); bindEnd();
     refreshProfile(); renderRanking(); renderStats(); renderShop();
     setClasseUI(LOBBY.classe, true);
-    // abre direto no jogo (tela deitada); launcher vira menu no ☰
-    LOBBY.playMode = "offline";
-    ensureBots(1 + (LOBBY.nBots || 3));
-    window.SA_UI.show("screen-game");
-    try { if (screen.orientation && screen.orientation.lock) { const p = screen.orientation.lock("landscape"); if (p && p.catch) p.catch(() => {}); } } catch (e) {}
-    startMatch();
     initNet();
     fitCanvas();
     window.addEventListener("resize", fitCanvas);
+    // o jogo abre no LOBBY primeiro (o launcher é separado)
+    LOBBY.playMode = "offline";
+    window.SA_UI.show("screen-lobby");
+    $("lobbyTitle").textContent = "🛡️ LOBBY";
+    $("onlineRow").hidden = true;
+    $("offlineRow").hidden = false;
+    $("startBtn").hidden = false;
+    EU_PRONTO = false; MEU_VOTO = null; REMOTE = {}; LOBBY.players = [];
+    refreshLobby();
+      try { if (screen.orientation && screen.orientation.lock) { const p = screen.orientation.lock("landscape"); if (p && p.catch) p.catch(() => {}); } } catch (e) {}
   }
   function C() { return window.SA_CONFIG; }
 
@@ -141,6 +145,16 @@
     renderLobbyPlayers(); renderClassCards();
   }
   function bindLobby() {
+    on("modoOffBtn", () => {
+      saveEntryName();
+      LOBBY.playMode = "offline";
+      $("lobbyTitle").textContent = "🤖 LOBBY — OFFLINE";
+      $("onlineRow").hidden = true;
+      $("offlineRow").hidden = false;
+      $("startBtn").hidden = false;
+      refreshLobby();
+    });
+    on("modoOnBtn", () => openOnlineCreate());
     on("copyCodeBtn", () => {
       const link = "https://perchance.org/" + (window.generatorName || "") + "#sala=" + LOBBY.code;
       try { navigator.clipboard.writeText("STICK ARENA de Lucas — sala " + LOBBY.code + " " + link); } catch (e) {}
