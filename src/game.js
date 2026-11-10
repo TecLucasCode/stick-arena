@@ -4,7 +4,8 @@
   const $ = (id) => document.getElementById(id);
   let PROF = null, GAME = null, NET = null, RAF = 0, LAST = 0, ACC = 0;
   let INPUT = { x: 0, jump: false, jumpPressed: false, down: false, atk: false, power: false, armaTroca: false };
-  let LOBBY = { code: null, players: [], isHost: true, classe: "guerreiro", armaIdx: 0, modo: "ffa", arena: "vulcao", playMode: "offline", nBots: 3, diff: "normal" };
+  let LOBBY = { code: null, players: [], isHost: true, hostId: null, classe: "guerreiro", armaIdx: 0, modo: "ffa", arena: "vulcao", playMode: "offline", nBots: 3, diff: "normal" };
+  let MEU_VOTO = null, EU_PRONTO = false;
   let REMOTE = {}; // id -> {x,y,...tx,ty,ts}
   let JOY = { active: false, id: null, cx: 0, cy: 0, dx: 0, dy: 0, down: false, jumpSent: false };
   let DPAD = { left: false, right: false, down: false };
@@ -44,18 +45,57 @@
   }
 
   // ---------- entrada / launcher ----------
+  function cleanCode(v) { return String(v || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6); }
+  function openOnlineMenu() {
+    saveEntryName();
+    LOBBY.playMode = "online";
+    window.SA_UI.show("screen-online");
+  }
+  function openOnlineCreate() {
+    saveEntryName();
+    LOBBY.playMode = "online";
+    window.SA_UI.show("screen-lobby");
+    $("lobbyTitle").textContent = "🌐 LOBBY ONLINE";
+    $("onlineRow").hidden = false;
+    $("offlineRow").hidden = true;
+    $("startBtn").hidden = false;
+    EU_PRONTO = true; MEU_VOTO = null; REMOTE = {}; LOBBY.players = []; LOBBY.hostId = NET ? NET.myId : null; LOBBY.isHost = true;
+    refreshLobby();
+    if (NET && NET.online) { NET.createRoom(PROF.name, LOBBY.classe, LOBBY.armaIdx); toast("Criando sala online..."); }
+    else toast("Sem servidor: jogue OFFLINE ou configure o servidor.");
+  }
+  function openOnlineJoin(code) {
+    saveEntryName();
+    LOBBY.playMode = "online";
+    window.SA_UI.show("screen-lobby");
+    $("lobbyTitle").textContent = "🌐 LOBBY ONLINE";
+    $("onlineRow").hidden = false;
+    $("offlineRow").hidden = true;
+    $("startBtn").hidden = false;
+    EU_PRONTO = false; MEU_VOTO = null; REMOTE = {}; LOBBY.players = []; LOBBY.isHost = false;
+    refreshLobby();
+    if (code.length === 6 && NET) {
+      LOBBY.code = code; $("roomCode").textContent = code;
+      if ($("joinInput")) $("joinInput").value = code;
+      NET.joinRoom(code, PROF.name, LOBBY.classe, LOBBY.armaIdx);
+      toast("Entrando na sala " + code + "...");
+    } else {
+      toast("Digite o código de 6 letras do amigo.");
+      setTimeout(() => { const i = $("joinInput"); if (i) i.focus(); }, 300);
+    }
+  }
   function bindEntry() {
-    on("entryOnlineBtn", () => {
-      saveEntryName();
-      LOBBY.playMode = "online";
-      window.SA_UI.show("screen-lobby");
-      $("lobbyTitle").textContent = "🌐 LOBBY ONLINE";
-      $("onlineRow").hidden = false;
-      $("offlineRow").hidden = true;
-      $("startBtn").hidden = false;
-      refreshLobby();
-      if (NET && NET.online) { NET.createRoom(PROF.name, LOBBY.classe); toast("Criando sala online..."); }
-      else toast("Sem servidor: jogue OFFLINE ou configure o servidor.");
+    on("entryOnlineBtn", openOnlineMenu);
+    on("createRoomBtn", openOnlineCreate);
+    on("goJoinBtn", () => {
+      const v = cleanCode($("onlineJoinInput") && $("onlineJoinInput").value);
+      if (v.length === 6) openOnlineJoin(v);
+      else { saveEntryName(); toast("Digite o código do amigo para entrar na sala."); const i = $("onlineJoinInput"); if (i) i.focus(); }
+    });
+    on("joinRoomBtn", () => {
+      const v = cleanCode($("onlineJoinInput") && $("onlineJoinInput").value);
+      if (v.length === 6) openOnlineJoin(v);
+      else toast("Digite o código de 6 letras do amigo.");
     });
     on("entryOfflineBtn", () => {
       saveEntryName();
@@ -97,6 +137,7 @@
     $("modeSel").value = LOBBY.modo; $("arenaSel").value = LOBBY.arena;
     if ($("botCount")) $("botCount").value = String(LOBBY.nBots);
     if ($("diffSel")) $("diffSel").value = LOBBY.diff;
+    if (LOBBY.playMode === "online" && NET) NET.code = LOBBY.code;
     renderLobbyPlayers(); renderClassCards();
   }
   function bindLobby() {
@@ -108,20 +149,31 @@
     on("newCodeBtn", () => {
       LOBBY.code = window.SA_NET.code6();
       $("roomCode").textContent = LOBBY.code;
-      if (NET && NET.online && LOBBY.playMode === "online") NET.createRoom(PROF.name, LOBBY.classe);
+      EU_PRONTO = true; MEU_VOTO = null;
+      if (NET && NET.online && LOBBY.playMode === "online") NET.createRoom(PROF.name, LOBBY.classe, LOBBY.armaIdx);
     });
     on("joinCodeBtn", () => {
       const v = ($("joinInput").value || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6);
-      if (v.length === 6 && NET) { LOBBY.code = v; $("roomCode").textContent = v; NET.joinRoom(v, PROF.name, LOBBY.classe); toast("Entrando na sala " + v + "..."); }
+      if (v.length === 6 && NET) { LOBBY.code = v; $("roomCode").textContent = v; EU_PRONTO = false; MEU_VOTO = null; NET.joinRoom(v, PROF.name, LOBBY.classe, LOBBY.armaIdx); toast("Entrando na sala " + v + "..."); }
       else toast("Digite o código de 6 letras do amigo.");
     });
     on("addBotBtn", () => {
-      if (LOBBY.playMode !== "offline") return toast("Bots só no modo OFFLINE.");
-      ensureBots(Math.min(8, LOBBY.players.length + 1));
+      if (LOBBY.playMode === "offline") { ensureBots(Math.min(8, LOBBY.players.length + 1)); return; }
+      if (!(NET && NET.online)) return toast("Sem servidor.");
+      if (!LOBBY.isHost) return toast("Só o anfitrião adiciona bots.");
+      if (LOBBY.players.length >= 8) return toast("Sala cheia (8/8).");
+      NET.addBot();
+    });
+    on("prontoBtn", () => {
+      if (LOBBY.playMode !== "online" || !(NET && NET.online)) return;
+      EU_PRONTO = !EU_PRONTO;
+      const me = LOBBY.players.find(p => p.isMe); if (me) me.ready = EU_PRONTO;
+      NET.pronto(EU_PRONTO);
+      renderLobbyPlayers();
     });
     on("startBtn", () => startPressed());
     $("modeSel").addEventListener("change", e => LOBBY.modo = e.target.value);
-    $("arenaSel").addEventListener("change", e => LOBBY.arena = e.target.value);
+    $("arenaSel").addEventListener("change", e => { LOBBY.arena = e.target.value; });
     if ($("botCount")) $("botCount").addEventListener("change", e => { LOBBY.nBots = parseInt(e.target.value, 10) || 3; ensureBots(1 + LOBBY.nBots); });
     if ($("diffSel")) $("diffSel").addEventListener("change", e => { LOBBY.diff = e.target.value; });
     if (location.hash.includes("sala=")) {
@@ -142,11 +194,21 @@
       const n = LOBBY.players.length;
       if (NET && NET.online && !LOBBY.isHost) return toast("Aguarde o anfitrião (👑) iniciar.");
       if (n < 2) return toast("Chame amigos pelo código ou jogue OFFLINE com bots.");
+      // mapa vencedor da votação (empate = voto do anfitrião, senão arena atual)
+      const votos = {};
+      LOBBY.players.forEach(p => { if (!p.isBot && p.voto) votos[p.voto] = (votos[p.voto] || 0) + 1; });
+      let best = LOBBY.arena, bn = 0;
+      const me = LOBBY.players.find(p => p.isMe);
+      for (const k in votos) if (votos[k] > bn) { bn = votos[k]; best = k; }
+      if (bn === 0 && me && me.voto) best = me.voto;
+      if (C().ARENAS[best]) LOBBY.arena = best;
+      const pend = LOBBY.players.filter(p => !p.isBot && !p.ready);
+      if (pend.length) return toast("Nem todos apertaram PRONTO (" + pend.length + ").");
       if (NET && NET.online) NET.startMatch(LOBBY.modo, LOBBY.arena);
       startMatch();
     }
   }
-  function meEntry() { return { id: NET && NET.online && LOBBY.playMode === "online" ? NET.myId : "me", name: PROF.name, classe: LOBBY.classe, armaIdx: LOBBY.armaIdx, isHost: LOBBY.isHost, isMe: true }; }
+  function meEntry() { return { id: NET && NET.online && LOBBY.playMode === "online" ? NET.myId : "me", name: PROF.name, classe: LOBBY.classe, armaIdx: LOBBY.armaIdx, arma: LOBBY.armaIdx, ready: EU_PRONTO, voto: MEU_VOTO, isHost: LOBBY.isHost, isMe: true }; }
   function ensureBots(total) {
     if (LOBBY.playMode !== "offline" && NET && NET.online) return; // online: lista vem do servidor
     const names = C().BOT_NAMES, cls = Object.keys(C().CLASSES);
@@ -166,13 +228,56 @@
     LOBBY.players.forEach((p) => {
       const d = document.createElement("div"); d.className = "plob" + (p.isMe ? " me" : "");
       const cls = C().CLASSES[p.classe] || C().CLASSES.guerreiro;
-      d.innerHTML = "<b>" + (p.isHost ? "👑 " : "") + escapeHtml(p.name) + "</b><span>" + cls.icone + " " + cls.nome + "</span>";
+      const arma = (C().WEAPONS[p.classe] || [])[p.arma ?? p.armaIdx ?? 0];
+      const badge = p.isBot ? "🤖" : (p.ready ? "✅" : "❌");
+      const voto = p.voto && C().ARENAS[p.voto] ? " 🗺️" + C().ARENAS[p.voto].nome : "";
+      d.innerHTML = "<b>" + (p.isHost ? "👑 " : "") + escapeHtml(p.name) + "</b><span>" + cls.icone + " " + cls.nome + " • " + escapeHtml(arma ? arma.nome : "") + " " + badge + voto + "</span>";
+      if (p.isBot && LOBBY.playMode === "online" && LOBBY.isHost) {
+        const x = document.createElement("button"); x.className = "ghost"; x.style.marginLeft = "8px"; x.textContent = "✕";
+        x.onclick = () => { NET && NET.rmBot(p.id); };
+        d.appendChild(x);
+      }
       ctn.appendChild(d);
     });
     $("lobbyCount").textContent = LOBBY.players.length + "/8 jogadores";
-    $("hostTag").textContent = LOBBY.playMode === "offline" ? "OFFLINE — só você + bots." : (LOBBY.isHost ? "Você é o ANFITRIÃO — só você inicia." : "Aguarde o anfitrião iniciar.");
+    $("hostTag").textContent = LOBBY.playMode === "offline" ? "OFFLINE — só você + bots." : (LOBBY.isHost ? "Você é o ANFITRIÃO — adicione bots se quiser, espere todos ✅ e inicie." : "Edite seu boneco, vote no mapa e aperte PRONTO. Aguarde o anfitrião.");
     $("startBtn").disabled = LOBBY.playMode === "online" && !LOBBY.isHost;
-    $("addBotBtn").style.display = LOBBY.playMode === "offline" ? "" : "none";
+    const pb = $("prontoBtn");
+    if (pb) {
+      pb.style.display = LOBBY.playMode === "online" ? "" : "none";
+      pb.textContent = EU_PRONTO ? "✅ PRONTO!" : "✋ PRONTO";
+      pb.classList.toggle("ready", EU_PRONTO);
+    }
+    const ab = $("addBotBtn");
+    if (ab) ab.style.display = (LOBBY.playMode === "offline" || (LOBBY.playMode === "online" && LOBBY.isHost)) ? "" : "none";
+    renderVotes();
+  }
+  function renderVotes() {
+    const card = $("voteCard"), row = $("voteRow");
+    if (!card || !row) return;
+    const online = LOBBY.playMode === "online";
+    card.hidden = !online;
+    const wrap = $("arenaSelWrap"); if (wrap) wrap.style.display = online ? "none" : "";
+    if (!online) return;
+    const cont = {};
+    LOBBY.players.forEach(p => { if (!p.isBot && p.voto) cont[p.voto] = (cont[p.voto] || 0) + 1; });
+    row.innerHTML = "";
+    for (const id of Object.keys(C().ARENAS)) {
+      const a = C().ARENAS[id];
+      const n = cont[id] || 0;
+      const b = document.createElement("button");
+      b.className = "wpn" + (MEU_VOTO === id ? " sel" : "");
+      b.innerHTML = "<b>" + a.nome + "</b><small>" + n + " voto(s)</small>";
+      b.onclick = () => {
+        MEU_VOTO = id; LOBBY.arena = id;
+        const me = LOBBY.players.find(p => p.isMe); if (me) me.voto = id;
+        if (NET) NET.voto(id);
+        renderLobbyPlayers(); window.SA_SFX("click");
+      };
+      row.appendChild(b);
+    }
+    const tot = Object.keys(cont).length;
+    $("voteCount").textContent = tot ? "Toque num mapa para votar. Mais votado vence." : "Ninguém votou ainda — toque num mapa!";
   }
   function renderClassCards() {
     const ctn = $("classCards"); ctn.innerHTML = "";
@@ -189,15 +294,21 @@
       const b = document.createElement("button");
       b.className = "wpn" + (LOBBY.armaIdx === i ? " sel" : "");
       b.innerHTML = "<b>" + escapeHtml(wp.nome) + "</b><small>D" + wp.dmg + " • " + Math.round(wp.cd) + "ms</small><small style='opacity:.75'>" + escapeHtml(wp.desc) + "</small>";
-      b.onclick = () => { LOBBY.armaIdx = i; PROF.classe = LOBBY.classe; PROF.armaIdx = i; window.SA_PROFILE.save(PROF); renderClassCards(); window.SA_SFX("click"); };
+      b.onclick = () => {
+        LOBBY.armaIdx = i; PROF.classe = LOBBY.classe; PROF.armaIdx = i; window.SA_PROFILE.save(PROF);
+        EU_PRONTO = LOBBY.playMode === "offline" ? true : false;
+        if (NET && NET.online && LOBBY.playMode === "online") NET.setClasse(LOBBY.classe, i);
+        renderClassCards(); renderLobbyPlayers(); window.SA_SFX("click");
+      };
       w.appendChild(b);
     });
   }
   function setClasseUI(id, silent) {
     LOBBY.classe = id; PROF.classe = id; window.SA_PROFILE.save(PROF);
+    if (!silent && LOBBY.playMode === "online") EU_PRONTO = false;
     const p = LOBBY.players.find(p => p.isMe); if (p) p.classe = id;
     renderClassCards(); renderLobbyPlayers();
-    if (!silent && NET) NET.setClasse(id);
+    if (!silent && NET && NET.online && LOBBY.playMode === "online") NET.setClasse(id, LOBBY.armaIdx);
   }
 
   // ---------- loja / ranking / stats / config ----------
@@ -272,11 +383,11 @@
     NET = new window.SA_NET.Net();
     try { window.SA_NET.rt = NET; } catch (e) {}
     NET.onEvent = (m) => {
-      if (m.t === "room") { LOBBY.code = m.code; $("roomCode").textContent = m.code; NET.code = m.code; LOBBY.isHost = (m.host === NET.myId); renderLobbyPlayers(); }
+      if (m.t === "room") { if (m.code) { LOBBY.code = m.code; $("roomCode").textContent = m.code; NET.code = m.code; } if (m.host) { LOBBY.hostId = m.host; LOBBY.isHost = (m.host === NET.myId); } renderLobbyPlayers(); }
       else if (m.t === "players") {
         REMOTE = {};
         const list = m.list || m.players || [];
-        list.forEach(p => { if (p.id !== NET.myId && p.id !== "me") REMOTE[p.id] = Object.assign({ tx: p.x || 200, ty: p.y || 200 }, p); });
+        list.forEach(p => { REMOTE[p.id] = Object.assign({ tx: p.x || 200, ty: p.y || 200 }, p); });
         syncRemotePlayers();
       }
       else if (m.t === "start") { LOBBY.modo = m.modo; LOBBY.arena = m.arena; toast("Anfitrião iniciou!"); startMatch(); }
@@ -291,12 +402,23 @@
   }
   function syncRemotePlayers() {
     if (LOBBY.playMode !== "online") return;
-    const me = meEntry();
-    me.id = NET.myId; me.isHost = LOBBY.isHost;
-    LOBBY.players = [me];
-    for (const id in REMOTE) {
-      if (LOBBY.players.length >= 8) break;
-      LOBBY.players.push({ id, name: REMOTE[id].name || "Online", classe: REMOTE[id].classe || "guerreiro", isHost: false });
+    const list = [];
+    for (const id in REMOTE) list.push(REMOTE[id]);
+    // garante que eu estou na lista (servidor manda todo mundo, inclusive eu)
+    if (!REMOTE[NET.myId]) list.push({ id: NET.myId, name: PROF.name, classe: LOBBY.classe, arma: LOBBY.armaIdx, ready: EU_PRONTO, voto: MEU_VOTO, isBot: false });
+    LOBBY.players = list.slice(0, 8).map(p => ({
+      id: p.id, name: p.name || (p.isBot ? "BOT" : "Online"),
+      classe: p.classe || "guerreiro", arma: p.arma ?? p.armaIdx ?? 0, armaIdx: p.arma ?? p.armaIdx ?? 0,
+      ready: !!p.ready, voto: p.voto || null, isBot: !!p.isBot,
+      isHost: p.id === LOBBY.hostId, isMe: p.id === NET.myId,
+    }));
+    const me = LOBBY.players.find(p => p.isMe);
+    if (me) { LOBBY.isHost = !!me.isHost; }
+    // sincroniza meu voto/pronto local com o servidor
+    const srvMe = REMOTE[NET.myId];
+    if (srvMe) {
+      if (typeof srvMe.ready === "boolean") EU_PRONTO = srvMe.ready;
+      if (srvMe.voto) { MEU_VOTO = srvMe.voto; LOBBY.arena = srvMe.voto; }
     }
     renderLobbyPlayers();
   }
@@ -339,11 +461,12 @@
     const teamOf = (i) => LOBBY.modo === "equipes" ? (i % 2) : 0;
     LOBBY.players.forEach((p, i) => {
       const isMe = !!p.isMe;
-      const cls = isMe ? LOBBY.classe : p.classe;
+      const cls = isMe ? LOBBY.classe : (p.classe || "guerreiro");
+      const arma = isMe ? LOBBY.armaIdx : (p.arma ?? p.armaIdx ?? (i % 5));
       const f = GAME.addFighter({
         id: isMe ? localId : p.id, name: p.name, classe: cls,
-        armaIdx: isMe ? LOBBY.armaIdx : (i % 5), team: teamOf(i),
-        isBot: LOBBY.playMode === "offline" ? (!isMe) : false,
+        armaIdx: arma, team: teamOf(i),
+        isBot: !!p.isBot || (LOBBY.playMode === "offline" && !isMe),
         x: GAME.spawnPts[i % GAME.spawnPts.length], y: 200,
         vidas: C().MODOS[LOBBY.modo].vidas,
       });

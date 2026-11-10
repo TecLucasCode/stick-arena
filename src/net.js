@@ -86,18 +86,34 @@
       }
     }
     hello(name, classe) { this.send({ t: "hello", id: this.myId, name, classe }); }
-    createRoom(name, classe) {
-      if (this.backend === "sio" && this.sio) this.sio.emit("create", { name, classe });
-      else this.send({ t: "create", id: this.myId, name, classe });
+    createRoom(name, classe, arma) {
+      if (this.backend === "sio" && this.sio) this.sio.emit("create", { name, classe, arma });
+      else this.send({ t: "create", id: this.myId, name, classe, arma });
     }
-    joinRoom(code, name, classe) {
+    joinRoom(code, name, classe, arma) {
       code = String(code || "").toUpperCase();
-      if (this.backend === "sio" && this.sio) this.sio.emit("join", { code, name, classe });
-      else this.send({ t: "join", id: this.myId, code, name, classe });
+      if (this.backend === "sio" && this.sio) this.sio.emit("join", { code, name, classe, arma });
+      else this.send({ t: "join", id: this.myId, code, name, classe, arma });
     }
-    setClasse(c) {
-      if (this.backend === "sio" && this.sio) this.sio.emit("classe", { classe: c });
-      else this.send({ t: "classe", id: this.myId, classe: c });
+    setClasse(c, arma) {
+      if (this.backend === "sio" && this.sio) this.sio.emit("classe", { classe: c, arma });
+      else this.send({ t: "classe", id: this.myId, classe: c, arma });
+    }
+    pronto(ready) {
+      if (this.backend === "sio" && this.sio) this.sio.emit("pronto", { ready: !!ready });
+      else this.send({ t: "pronto", id: this.myId, ready: !!ready });
+    }
+    voto(arena) {
+      if (this.backend === "sio" && this.sio) this.sio.emit("voto", { arena });
+      else this.send({ t: "voto", id: this.myId, arena });
+    }
+    addBot(classe) {
+      if (this.backend === "sio" && this.sio) this.sio.emit("addbot", { classe });
+      else this.send({ t: "addbot", id: this.myId, classe });
+    }
+    rmBot(bot) {
+      if (this.backend === "sio" && this.sio) this.sio.emit("rmbot", { bot });
+      else this.send({ t: "rmbot", id: this.myId, bot });
     }
     startMatch(modo, arena) {
       if (this.backend === "sio" && this.sio) this.sio.emit("start", { code: this.code, modo, arena });
