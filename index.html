@@ -269,6 +269,10 @@ self.onmessage = function(e){
       <label class="muted">Modo <select id="modeSel"><option value="ffa">Todos contra todos</option><option value="equipes">Equipes</option><option value="sobrevivencia">Sobrevivência</option><option value="rei">Rei da Arena</option></select></label>
       <label class="muted" id="arenaSelWrap">Arena <select id="arenaSel"><option value="vulcao">🌋 Vulcão</option><option value="gelo">❄️ Gelo</option><option value="floresta">🌲 Floresta</option><option value="cyber">🤖 Cyber</option><option value="deserto">🏜️ Deserto</option></select></label>
     </div>
+    <div class="row" id="lobbyModeRow" style="margin-top:8px">
+      <button id="modoOffBtn" class="ghost">🤖 Offline</button>
+      <button id="modoOnBtn" class="ghost">🌐 Online</button>
+    </div>
     <div class="card" id="voteCard" hidden style="box-shadow:none"><h3 style="margin:4px">🗺️ Votação de mapa (online)</h3><div class="row" id="voteRow"></div><p class="muted" id="voteCount"></p></div>
   </div>
   <div class="card"><h3 style="margin:4px">👥 <span id="lobbyCount"></span></h3><div id="lobbyList"></div>
@@ -359,7 +363,7 @@ self.onmessage = function(e){
     <p><b>Classes:</b> ⚔️ Guerreiro (Fúria), 🔮 Mago (Teleporte), 🏹 Atirador (Reflexo), ⚙️ Engenheiro (Torreta).</p>
     <p><b>Armas:</b> 20 no total, 5 por classe, cada uma com desenho e bala próprios. Escolha no lobby — sem troca na partida.</p>
     <p><b>PC:</b> A/D mover, W/Espaço pular (2x, com coyote-time), S agachar, clique/J atacar, K poder.</p>
-    <p><b>Celular:</b> joystick esquerda (↑ pula, ↓ agacha), botões direita: ⚔️ grande atacar, ✨ poder, pulo, arma. HUD fina no topo pra não tapar a visão.</p>
+    <p><b>Celular:</b> setas ◀ ▶ mover • ▲ pular • ▼ agachar, botões <b>J</b> atacar e <b>K</b> poder (ou joystick analógico, em ⚙️ CONFIG). Arma só no lobby.</p>
     <button data-back class="ghost">← Voltar</button>
   </div>
 </div>

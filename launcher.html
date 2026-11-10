@@ -1,0 +1,219 @@
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0a0618">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="icon" type="image/png" href="src/icon-512.png">
+<link rel="apple-touch-icon" href="src/icon-192.png">
+<link rel="manifest" href="launcher.webmanifest">
+<title>Launcher — STICK ARENA por Lucas</title>
+<style>
+:root{--bg:#0a0618;--card:#1b1038;--line:#3b2a6d;--acc:#8b5cf6;--acc2:#22d3ee;--txt:#f1efff;--mut:#a99fd6;--gold:#fbbf24;--sat:env(safe-area-inset-top);--sab:env(safe-area-inset-bottom)}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0;background:radial-gradient(1200px 600px at 20% -10%,#2a165e 0%,var(--bg) 55%),var(--bg);color:var(--txt);font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Arial,sans-serif;text-align:center;min-height:100vh}
+body{padding:calc(10px + var(--sat)) 10px calc(18px + var(--sab))}
+h1.logo{font-size:clamp(30px,6vw,52px);margin:6px 0 0;letter-spacing:2px;background:linear-gradient(90deg,#a78bfa,#22d3ee,#f472b6,#a78bfa);-webkit-background-clip:text;background-clip:text;color:transparent}
+.sub{color:var(--mut);margin:2px 0 0}
+.creator{color:var(--gold);font-weight:700;margin:2px 0 8px}
+.wrap{max-width:860px;margin:0 auto}
+.card{background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02));border:1px solid var(--line);border-radius:16px;padding:14px;margin:10px auto;box-shadow:0 0 24px rgba(139,92,246,.18)}
+.row{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;align-items:center}
+button{background:linear-gradient(180deg,#7c3aed,#5b21b6);border:1px solid #a78bfa;color:#fff;border-radius:12px;padding:12px 18px;font-size:16px;font-weight:700;cursor:pointer}
+button:active{transform:translateY(2px)}
+button.ghost{background:#221645;box-shadow:none}
+button.big{font-size:18px;padding:14px 28px}
+button.danger{background:linear-gradient(180deg,#b91c1c,#7f1d1d);border-color:#f87171}
+input,select{background:#0f0a24;color:var(--txt);border:1px solid var(--line);border-radius:10px;padding:10px;font-size:15px}
+.muted{color:var(--mut)}
+.pcard{display:flex;gap:14px;align-items:center;text-align:left;flex-wrap:wrap}
+.pcard img{width:84px;height:84px;border-radius:22px;border:2px solid var(--acc2);box-shadow:0 0 18px rgba(34,211,238,.4)}
+.pinfo{flex:1;min-width:200px}
+.pinfo b.n{font-size:20px}
+.xpbar{height:10px;background:#0f0a24;border:1px solid var(--line);border-radius:99px;overflow:hidden;max-width:420px;margin:6px 0}
+.xpbar i{display:block;height:100%;background:linear-gradient(90deg,var(--acc),var(--acc2));width:0%}
+.statGrid{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:8px}
+.stat{background:#150c30;border:1px solid var(--line);border-radius:10px;padding:8px;min-width:96px}
+.stat b{display:block;font-size:17px}
+.stat small{color:var(--mut)}
+.games{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+.game{background:#150c30;border:2px solid var(--line);border-radius:16px;padding:14px;display:flex;flex-direction:column;gap:8px;align-items:center}
+.game.arena{border-color:var(--gold)}
+.game .gi{font-size:52px;line-height:1}
+.game img.gi{width:72px;height:72px;border-radius:18px}
+.game b{font-size:18px}
+.game small{color:var(--mut)}
+.game .row{width:100%}
+#addForm input{width:100%;margin:4px 0}
+#playWrap{position:fixed;inset:0;z-index:100;background:#000;display:flex;flex-direction:column}
+#playWrap[hidden]{display:none}
+#playBar{display:flex;gap:8px;align-items:center;justify-content:space-between;padding:calc(6px + var(--sat)) 10px 6px;background:#0a0618;border-bottom:1px solid var(--line);font-weight:700}
+#gameFrame{flex:1;width:100%;border:0;background:#000}
+#rotateTip{position:fixed;inset:0;z-index:200;display:none;align-items:center;justify-content:center;background:#0a0618;color:var(--txt);font-size:20px;font-weight:800;text-align:center;padding:24px}
+@media(max-width:640px) and (orientation:portrait){#rotateTip.playing{display:flex}}
+</style>
+
+<div class="wrap" id="hub">
+  <h1 class="logo">🎮 LAUNCHER</h1>
+  <p class="sub">Seus jogos num só app</p>
+  <p class="creator">por Lucas ⚔️</p>
+
+  <div class="card">
+    <div class="pcard">
+      <img src="src/icon-512.png" alt="Jogador">
+      <div class="pinfo">
+        <b class="n" id="pName">—</b>
+        <button class="ghost" id="editNameBtn" style="padding:6px 10px;font-size:13px">✏️</button>
+        <div class="muted"><span id="pLevel">Nv 1</span> • <span id="pTier">Bronze</span> • 🪙 <b id="pCoins">0</b></div>
+        <div class="xpbar"><i id="xpFill"></i></div>
+        <small class="muted" id="xpTxt"></small>
+      </div>
+    </div>
+    <div class="statGrid">
+      <div class="stat"><b id="sPartidas">0</b><small>partidas</small></div>
+      <div class="stat"><b id="sVitorias">0</b><small>vitórias</small></div>
+      <div class="stat"><b id="sKills">0</b><small>kills</small></div>
+      <div class="stat"><b id="sMelhor">—</b><small>melhor pos.</small></div>
+    </div>
+  </div>
+
+  <div class="games" id="gamesGrid"></div>
+
+  <div class="card" id="addForm" hidden>
+    <h3 style="margin:4px">＋ Adicionar jogo</h3>
+    <input id="gName" maxlength="24" placeholder="Nome do jogo">
+    <input id="gUrl" inputmode="url" placeholder="URL (https://… ou jogo.html)">
+    <input id="gIcon" maxlength="8" placeholder="Ícone emoji (ex: 🏎️) — vazio = 🎮">
+    <div class="row" style="margin-top:8px">
+      <button id="saveGameBtn">💾 Salvar jogo</button>
+      <button class="ghost" id="cancelGameBtn">Cancelar</button>
+    </div>
+  </div>
+
+  <p class="muted">Dica: no Chrome toque em ⋮ → <b>Adicionar à tela inicial</b> pra usar como app. O jogo abre em tela cheia direto no lobby.</p>
+</div>
+
+<div id="playWrap" hidden>
+  <div id="playBar"><span id="playTitle">STICK ARENA</span><button class="danger" id="exitPlayBtn" style="padding:8px 14px">✕ Sair</button></div>
+  <iframe id="gameFrame" allow="fullscreen; autoplay; gamepad" allowfullscreen></iframe>
+</div>
+<div id="rotateTip">🔄 VIRE O CELULAR<br><small>deite para jogar em tela cheia</small></div>
+
+<script>
+(function(){
+"use strict";
+var KEY="stickArenaV1", GKEY="saLauncherGames";
+// manter em sincronia com src/config.js TIERS e profile.js lvlXp
+var TIERS=[{nome:"Bronze",min:0,cor:"#cd7f32"},{nome:"Prata",min:300,cor:"#cbd5e1"},{nome:"Ouro",min:700,cor:"#fbbf24"},{nome:"Platina",min:1200,cor:"#67e8f9"},{nome:"Diamante",min:1800,cor:"#60a5fa"},{nome:"Mestre",min:2500,cor:"#e879f9"}];
+function lvlXp(l){return Math.floor(100*Math.pow(l,1.4));}
+function tierOf(r){var t=TIERS[0];for(var i=0;i<TIERS.length;i++)if(r>=TIERS[i].min)t=TIERS[i];return t;}
+function $(id){return document.getElementById(id);}
+function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];});}
+
+function loadProf(){
+  try{var p=JSON.parse(localStorage.getItem(KEY)||"null");if(p&&p.name)return p;}catch(e){}
+  return {name:"Jogador",xp:0,level:1,coins:0,rating:0,stats:{}};
+}
+function refreshPlayer(){
+  var p=loadProf(), s=p.stats||{};
+  $("pName").textContent=p.name||"Jogador";
+  $("pLevel").textContent="Nv "+(p.level||1);
+  var t=tierOf(p.rating||0);
+  var te=$("pTier"); te.textContent=t.nome+" ("+(p.rating||0)+")"; te.style.color=t.cor;
+  $("pCoins").textContent="🪙 "+(p.coins||0);
+  var need=lvlXp(p.level||1);
+  $("xpFill").style.width=Math.min(100,Math.round((p.xp||0)/need*100))+"%";
+  $("xpTxt").textContent=(p.xp||0)+"/"+need+" XP";
+  $("sPartidas").textContent=s.partidas||0;
+  $("sVitorias").textContent=s.vitorias||0;
+  $("sKills").textContent=s.kills||0;
+  $("sMelhor").textContent=s.melhorPos?("#"+s.melhorPos):"—";
+}
+function loadGames(){
+  try{var g=JSON.parse(localStorage.getItem(GKEY)||"[]");if(Array.isArray(g))return g;}catch(e){}
+  return [];
+}
+function saveGames(g){try{localStorage.setItem(GKEY,JSON.stringify(g));}catch(e){}}
+function arenaUrl(u){
+  if(u.indexOf("tela=")>=0)return u;
+  return u+(u.indexOf("?")>=0?"&":"?")+"tela=lobby";
+}
+function renderGames(){
+  var grid=$("gamesGrid"); grid.innerHTML="";
+  var arena={nome:"STICK ARENA",desc:"4 classes • 20 armas • online com código",iconImg:"src/icon-512.png",url:"index.html",arena:true,fixo:true};
+  var all=[arena].concat(loadGames());
+  all.forEach(function(g,idx){
+    var d=document.createElement("div"); d.className="game"+(g.fixo?" arena":"");
+    var icon=g.iconImg?'<img class="gi" src="'+esc(g.iconImg)+'" alt="">':'<div class="gi">'+esc(g.icone||"🎮")+"</div>";
+    d.innerHTML=icon+"<b>"+esc(g.nome)+"</b><small>"+esc(g.desc||(g.fixo?"por Lucas ⚔️":""))+"</small>";
+    var r=document.createElement("div"); r.className="row";
+    var play=document.createElement("button"); play.className="big"; play.textContent="▶ JOGAR";
+    play.onclick=function(){playGame(g);};
+    r.appendChild(play);
+    if(!g.fixo){
+      var del=document.createElement("button"); del.className="ghost"; del.textContent="🗑️";
+      del.onclick=function(){var gs=loadGames();gs.splice(idx-1,1);saveGames(gs);renderGames();};
+      r.appendChild(del);
+    }
+    d.appendChild(r); grid.appendChild(d);
+  });
+  var add=document.createElement("div"); add.className="game";
+  add.innerHTML='<div class="gi">＋</div><b>Adicionar jogo</b><small>qualquer jogo por URL</small>';
+  var r2=document.createElement("div"); r2.className="row";
+  var b=document.createElement("button"); b.className="ghost"; b.textContent="Adicionar";
+  b.onclick=function(){$("addForm").hidden=false;};
+  r2.appendChild(b); add.appendChild(r2); grid.appendChild(add);
+}
+function playGame(g){
+  var url=g.url;
+  if(g.arena)url=arenaUrl(url);
+  $("playTitle").textContent=g.nome;
+  $("playWrap").hidden=false;
+  $("rotateTip").classList.add("playing");
+  var f=$("gameFrame");
+  f.src=url;
+  var w=$("playWrap");
+  try{
+    var p=w.requestFullscreen? w.requestFullscreen(): (w.webkitRequestFullscreen? w.webkitRequestFullscreen(): null);
+    if(p&&p.catch)p.catch(function(){});
+  }catch(e){}
+  try{if(screen.orientation&&screen.orientation.lock){var q=screen.orientation.lock("landscape");if(q&&q.catch)q.catch(function(){});}}catch(e){}
+}
+function exitPlay(){
+  try{if(document.fullscreenElement&&document.exitFullscreen)document.exitFullscreen();}catch(e){}
+  try{$("gameFrame").src="about:blank";}catch(e){}
+  $("playWrap").hidden=true;
+  $("rotateTip").classList.remove("playing");
+  refreshPlayer(); renderGames();
+}
+$("exitPlayBtn").addEventListener("click",exitPlay);
+document.addEventListener("fullscreenchange",function(){
+  if(!document.fullscreenElement)$("playWrap").hidden=true,$("rotateTip").classList.remove("playing"),refreshPlayer();
+});
+$("editNameBtn").addEventListener("click",function(){
+  var p=loadProf();
+  var v=null;
+  try{v=window.prompt("Seu nome:",p.name||"Jogador");}catch(e){}
+  if(v===null||v===undefined)return;
+  v=String(v).trim().slice(0,16); if(!v)return;
+  try{
+    var raw=JSON.parse(localStorage.getItem(KEY)||"null")||{};
+    raw.name=v; localStorage.setItem(KEY,JSON.stringify(raw));
+  }catch(e){}
+  refreshPlayer();
+});
+$("cancelGameBtn").addEventListener("click",function(){$("addForm").hidden=true;});
+$("saveGameBtn").addEventListener("click",function(){
+  var n=$("gName").value.trim().slice(0,24), u=$("gUrl").value.trim(), ic=$("gIcon").value.trim().slice(0,8);
+  if(!n||!u){try{window.alert("Preencha nome e URL do jogo.");}catch(e){}return;}
+  if(!/^https?:\/\//i.test(u)&&u.indexOf(".")<0&&u.charAt(0)!=="/"){try{window.alert("URL inválida. Ex: https://site.com/jogo ou meujogo.html");}catch(e){}return;}
+  var gs=loadGames(); gs.push({nome:n,url:u,icone:ic||"🎮",desc:""});
+  saveGames(gs);
+  $("gName").value="";$("gUrl").value="";$("gIcon").value="";
+  $("addForm").hidden=true; renderGames();
+});
+document.addEventListener("visibilitychange",function(){if(!document.hidden)refreshPlayer();});
+window.addEventListener("pageshow",refreshPlayer);
+refreshPlayer(); renderGames();
+try{if("serviceWorker"in navigator){window.addEventListener("load",function(){navigator.serviceWorker.register("./sw.js").catch(function(){});});}}catch(e){}
+})();
+</script>
