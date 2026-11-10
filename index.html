@@ -39,7 +39,9 @@ button.big{font-size:19px;padding:14px 30px}
 .wpn small{display:block;color:var(--mut);font-size:11px}
 select,input{background:#0f0a24;color:var(--txt);border:1px solid var(--line);border-radius:10px;padding:10px;font-size:15px}
 .muted{color:var(--mut)}
-#gameWrap{position:relative;margin:0 auto;max-width:980px}
+#gameWrap{position:relative;margin:0 auto;max-width:980px;touch-action:none}
+#hudEdit button{touch-action:manipulation}
+#hudEdit button.on,button.hudchoice.on{border-color:var(--gold);box-shadow:0 0 12px rgba(251,191,36,.55)}
 #gameCv{background:#000;border-radius:14px;border:1px solid var(--line);width:100%!important;height:auto!important;aspect-ratio:960/540;display:block;touch-action:none}
 #hud{position:absolute;top:6px;left:6px;right:6px;display:flex;gap:6px;justify-content:space-between;align-items:flex-start;pointer-events:none;font-size:11px;z-index:3}
 .hudbox{background:rgba(0,0,0,.48);border:1px solid rgba(59,42,109,.8);border-radius:8px;padding:4px 8px;text-align:left;line-height:1.3;max-width:33%;backdrop-filter:blur(2px)}
@@ -48,6 +50,16 @@ select,input{background:#0f0a24;color:var(--txt);border:1px solid var(--line);bo
 #killfeed{position:absolute;top:52px;right:6px;display:flex;flex-direction:column;gap:4px;align-items:flex-end;pointer-events:none;z-index:3;max-width:44%}
 .kf{background:rgba(0,0,0,.5);border:1px solid rgba(59,42,109,.7);padding:3px 8px;border-radius:7px;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 #touch{position:absolute;left:0;right:0;bottom:calc(4px + var(--sab));display:flex;justify-content:space-between;align-items:flex-end;padding:0 8px;pointer-events:none;z-index:4}
+body.playing #menu,body.playing footer{display:none}
+body.playing #screen-game > p{display:none}
+body.playing{padding:0}
+body.playing #screen-game.active{display:flex;align-items:center;justify-content:center;min-height:100vh;min-height:100dvh;padding:0;max-width:none}
+body.playing #gameWrap{max-width:none;width:fit-content;width:-moz-fit-content;margin:0}
+#hudEdit{position:absolute;top:52px;left:50%;transform:translateX(-50%);background:rgba(10,6,24,.94);border:1px solid var(--acc2);border-radius:14px;padding:10px 12px;z-index:6;min-width:260px;max-width:92%}
+#hudEdit .row{margin:4px 0}
+#hudEdit button{padding:8px 12px;font-size:13px}
+body.editing #touch .tbtn,body.editing #dpad,body.editing #joyBase{outline:2px dashed var(--gold);outline-offset:2px}
+body.editing #gameCv{pointer-events:none}
 #rotateTip{position:fixed;inset:0;z-index:200;display:none;align-items:center;justify-content:center;background:#0a0618;color:var(--txt);font-size:20px;font-weight:800;text-align:center;padding:24px}
 @media(max-width:640px) and (orientation:portrait){#rotateTip{display:flex}}
 #dpad{display:flex;flex-direction:column;align-items:center;gap:6px;pointer-events:auto;touch-action:none}
@@ -279,6 +291,10 @@ self.onmessage = function(e){
     <div class="row"><button id="addBotBtn" class="ghost">🤖 + Bot</button><button id="prontoBtn" class="ghost">✋ PRONTO</button><button id="startBtn" class="big">⚔️ INICIAR</button></div>
     <p class="muted">Online: edite seu boneco/arma, vote no mapa, aperte PRONTO. Anfitrião (👑) inicia quando todos estiverem prontos. Pode completar com bots.</p>
   </div>
+  <div class="card"><h3 style="margin:4px">🎛️ Controles <small class="muted">vale na partida</small></h3>
+    <div class="row"><button id="lobSetas" class="ghost hudchoice">◀▶ Setas</button><button id="lobJoy" class="ghost hudchoice">🕹️ Joystick</button></div>
+    <div class="row"><button id="lobSizeP" class="ghost hudchoice">P</button><button id="lobSizeM" class="ghost hudchoice">M</button><button id="lobSizeG" class="ghost hudchoice">G</button></div>
+    <p class="muted">Posição dos botões (arrastar) ajusta no 🎛️ HUD dentro da luta.</p></div>
   <div class="card"><h3 style="margin:4px">Escolha sua classe</h3><div class="row" id="classCards"></div><h3 style="margin:8px 4px">Arma inicial (visual único)</h3><div class="row" id="weaponRow"></div></div>
   <button data-back class="ghost">← Launcher</button>
 </div>
@@ -290,9 +306,16 @@ self.onmessage = function(e){
     <div id="hud">
       <div class="hudbox">🌋 <b id="hudArena">VULCÃO</b><br><span id="hudModo">FFA</span> • <b id="hudTime">1:30</b><br><span id="hudScore" class="muted"></span></div>
       <div class="hudbox">❤️ <span id="hudHpTxt">100/100</span><div id="hudHpBar"><i id="hudHp"></i></div><span id="hudKda">0K • 0A</span></div>
-      <div class="hudbox">🔫 <b id="hudWpn">—</b><br>✨ <span id="hudPow">—</span><br><button id="menuBtn" class="ghost" style="pointer-events:auto;padding:4px 10px;font-size:12px;margin-top:4px">☰ Menu</button></div>
+      <div class="hudbox">🔫 <b id="hudWpn">—</b><br>✨ <span id="hudPow">—</span><br><button id="menuBtn" class="ghost" style="pointer-events:auto;padding:4px 10px;font-size:12px;margin-top:4px">☰ Menu</button> <button id="hudBtn" class="ghost" style="pointer-events:auto;padding:4px 10px;font-size:12px;margin-top:4px">🎛️ HUD</button></div>
     </div>
     <div id="killfeed"></div>
+    <div id="hudEdit" hidden>
+      <div class="row"><b>🎛️ Editar HUD</b><button id="hudClose" class="ghost">✔️ Pronto</button></div>
+      <div class="row"><button id="hudSetas" class="ghost">◀▶ Setas</button><button id="hudJoy" class="ghost">🕹️ Joystick</button></div>
+      <div class="row"><button id="hudMove" class="ghost">📐 Mover botões: OFF</button><button id="hudReset" class="ghost">↩️ Posições</button></div>
+      <div class="row"><button id="hudSizeP" class="ghost">P</button><button id="hudSizeM" class="ghost">M</button><button id="hudSizeG" class="ghost">G</button></div>
+      <p class="muted" style="margin:4px 0 0;font-size:12px">Ligue "Mover" e arraste cada botão pro lugar que quiser. Salva sozinho.</p>
+    </div>
     <div id="touch">
       <div id="dpad">
         <button class="tbtn" id="upBtn">▲</button>
@@ -347,7 +370,7 @@ self.onmessage = function(e){
       <label>Botões <select id="cfgBtnSize"><option value="p">Pequenos</option><option value="medio">Médios</option><option value="g">Grandes</option></select></label></div>
       <div class="row"><label><input type="checkbox" id="cfgScore"> Placar na HUD</label>
       <label><input type="checkbox" id="cfgKill"> Killfeed</label></div>
-      <p class="muted">Setas = discreto igual Hellbound. Joystick = analógico (arrasta). Vale na hora.</p></div>
+      <p class="muted">Setas = discreto igual Hellbound. Joystick = analógico (arrasta). Vale na hora. Dica: no jogo, o botão 🎛️ HUD troca tudo e move os botões de lugar sem sair da partida.</p></div>
     <div class="row"><label style="flex:1;min-width:260px">Servidor Render (GitHub) <input id="cfgServer" placeholder="https://stick-arena.onrender.com" style="width:100%"></label></div>
     <p class="muted">No Perchance deixe vazio (usa servidor embutido). No GitHub Pages cole a URL do Render.</p>
     <div class="row"><button id="saveCfgBtn">💾 Salvar</button><button data-back class="ghost">← Voltar</button></div>
