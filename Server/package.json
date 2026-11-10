@@ -1,0 +1,17 @@
+{
+  "name": "stick-arena-server",
+  "version": "2.0.0",
+  "description": "STICK ARENA por Lucas — servidor multiplayer Socket.IO (Render)",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "socket.io": "^4.7.5",
+    "cors": "^2.8.5"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
