@@ -15,47 +15,69 @@ app.get("/", (_req, res) => res.send("STICK ARENA por Lucas — servidor online.
 const http = createServer(app);
 const io = new Server(http, { cors: { origin: "*" } });
 
-const rooms = new Map(); // code -> {code, host, started, modo, arena, players:{sockId:{id,name,classe}}, seq}
+const rooms = new Map();
 const ABC = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const code6 = () => Array.from({length:6},()=>ABC[Math.floor(Math.random()*ABC.length)]).join("");
 const clean = (s,n)=>String(s||"").slice(0,n||16);
+const CLS = ["guerreiro","mago","atirador","engenheiro"];
 
 function publicPlayers(r){ return Object.values(r.players); }
+function firstHuman(r){ for(const id in r.players) if(!r.players[id].isBot) return id; return Object.keys(r.players)[0]; }
 
 io.on("connection", (sock) => {
-  sock.on("create", ({ name, classe }) => {
+  sock.on("create", ({ name, classe, arma }) => {
     const code = code6();
     rooms.set(code, { code, host: sock.id, started:false, modo:"ffa", arena:"vulcao", players:{}, seq:0 });
     const r = rooms.get(code);
-    r.players[sock.id] = { id: sock.id, name: clean(name||"Jogador"), classe: clean(classe||"guerreiro") };
+    r.players[sock.id] = { id: sock.id, name: clean(name||"Jogador"), classe: clean(classe||"guerreiro"), arma: (arma|0)||0, ready: true, voto: null, isBot: false };
     sock.join(code);
     sock.emit("room", { code, host: r.host });
     io.to(code).emit("players", publicPlayers(r));
   });
-  sock.on("join", ({ code, name, classe }) => {
+  sock.on("join", ({ code, name, classe, arma }) => {
     code = clean(code,6).toUpperCase();
     const r = rooms.get(code);
     if(!r) return sock.emit("toast","Sala não encontrada");
     if(Object.keys(r.players).length>=8) return sock.emit("toast","Sala cheia (8/8)");
     if(r.started) return sock.emit("toast","Partida em andamento");
-    r.players[sock.id] = { id: sock.id, name: clean(name||"Online"), classe: clean(classe||"guerreiro") };
+    r.players[sock.id] = { id: sock.id, name: clean(name||"Online"), classe: clean(classe||"guerreiro"), arma: (arma|0)||0, ready: false, voto: null, isBot: false };
     sock.join(code);
     sock.emit("room", { code, host: r.host });
     io.to(code).emit("players", publicPlayers(r));
   });
-  sock.on("classe", ({ classe }) => {
-    for(const [code,r] of rooms){ if(r.players[sock.id] && !r.started){ r.players[sock.id].classe = clean(classe||"guerreiro"); io.to(code).emit("players", publicPlayers(r)); } }
+  sock.on("classe", ({ classe, arma }) => {
+    for(const [code,r] of rooms){ if(r.players[sock.id] && !r.started && !r.players[sock.id].isBot){ r.players[sock.id].classe = clean(classe||"guerreiro"); r.players[sock.id].arma = (arma|0)||0; r.players[sock.id].ready = false; io.to(code).emit("players", publicPlayers(r)); } }
+  });
+  sock.on("pronto", ({ ready }) => {
+    for(const [code,r] of rooms){ if(r.players[sock.id] && !r.started && !r.players[sock.id].isBot){ r.players[sock.id].ready = !!ready; io.to(code).emit("players", publicPlayers(r)); } }
+  });
+  sock.on("voto", ({ arena }) => {
+    for(const [code,r] of rooms){ if(r.players[sock.id] && !r.started && !r.players[sock.id].isBot){ r.players[sock.id].voto = clean(arena||"",16) || null; io.to(code).emit("players", publicPlayers(r)); } }
+  });
+  sock.on("addbot", ({ classe }) => {
+    for(const [code,r] of rooms){
+      if(r.host !== sock.id || r.started) continue;
+      if(Object.keys(r.players).length>=8) { sock.emit("toast","Sala cheia (8/8)"); continue; }
+      const bid = "bot"+Math.random().toString(36).slice(2,7);
+      r.players[bid] = { id: bid, name: "BOT "+bid.slice(3,6).toUpperCase(), classe: clean(classe||CLS[Math.floor(Math.random()*4)]), arma: Math.floor(Math.random()*5), ready: true, voto: null, isBot: true };
+      io.to(code).emit("players", publicPlayers(r));
+    }
+  });
+  sock.on("rmbot", ({ bot }) => {
+    for(const [code,r] of rooms){
+      if(r.host !== sock.id || r.started) continue;
+      if(r.players[bot] && r.players[bot].isBot){ delete r.players[bot]; io.to(code).emit("players", publicPlayers(r)); }
+    }
   });
   sock.on("start", ({ code, modo, arena }) => {
     code = clean(code,6).toUpperCase();
     const r = rooms.get(code); if(!r || r.host!==sock.id) return;
-    if(Object.keys(r.players).length<2 && r.players[sock.id]) { /* permite solo? exige 1 */ }
+    if(Object.keys(r.players).length<2) return;
+    for(const id in r.players){ if(!r.players[id].isBot && !r.players[id].ready){ sock.emit("toast","Nem todos apertaram PRONTO"); return; } }
     r.started = true; r.modo = clean(modo||"ffa",16); r.arena = clean(arena||"vulcao",16);
     io.to(code).emit("start", { modo: r.modo, arena: r.arena });
   });
-  // compat com client net.js que manda t:pos/t:atk via emit(t, o)
   sock.on("pos", (p) => relayPos(sock,p));
-  sock.on("t", ()=>{});
   sock.onAny((ev, p)=>{
     if(ev==="pos") relayPos(sock,p);
     if(ev==="atk"){
@@ -63,7 +85,9 @@ io.on("connection", (sock) => {
       r.seq++;
       sock.to(p.code).emit("atk", { t:"atk", id: sock.id, seq: r.seq, arma:(p.arma|0), x:(p.x|0), y:(p.y|0), dir:(p.dir===1?1:-1) });
     }
-    if(ev==="hello") sock.emit("room", { code:null, host:null });
+    if(ev==="pronto"){ for(const [code,r] of rooms){ if(r.players[sock.id] && !r.started){ r.players[sock.id].ready = !!(p&&p.ready); io.to(code).emit("players", publicPlayers(r)); } } }
+    if(ev==="voto"){ for(const [code,r] of rooms){ if(r.players[sock.id] && !r.started){ r.players[sock.id].voto = clean(p&&p.arena||"",16)||null; io.to(code).emit("players", publicPlayers(r)); } } }
+    if(ev==="classe" && p && (p.classe||p.arma!==undefined)){ for(const [code,r] of rooms){ if(r.players[sock.id] && !r.started){ if(p.classe) r.players[sock.id].classe = clean(p.classe); if(p.arma!==undefined) r.players[sock.id].arma = (p.arma|0)||0; io.to(code).emit("players", publicPlayers(r)); } } }
   });
   function relayPos(sock,p){
     if(!p||!p.code) return;
@@ -77,9 +101,13 @@ io.on("connection", (sock) => {
     for(const code of sock.rooms){
       const r = rooms.get(code); if(!r) continue;
       delete r.players[sock.id];
-      if(r.host===sock.id) r.host = Object.keys(r.players)[0];
-      if(!Object.keys(r.players).length) rooms.delete(code);
-      else { io.to(code).emit("players", publicPlayers(r)); io.to(code).emit("room",{code,host:r.host}); }
+      const ids = Object.keys(r.players);
+      const humans = ids.filter(id=>r.players[id] && !r.players[id].isBot);
+      if(humans.length===0 && ids.length>0){ rooms.delete(code); continue; }
+      if(!ids.length){ rooms.delete(code); continue; }
+      if(r.host===sock.id) r.host = firstHuman(r);
+      io.to(code).emit("players", publicPlayers(r));
+      io.to(code).emit("room",{code,host:r.host});
     }
   });
 });
